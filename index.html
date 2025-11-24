@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A mobile-friendly workout timer app with configurable intervals">
+    <meta name="theme-color" content="#4CAF50">
+    <title>Workout Timer</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with Dark Mode Toggle -->
+        <header>
+            <h1>Workout Timer</h1>
+            <label class="dark-mode-toggle" aria-label="Toggle dark mode">
+                <input type="checkbox" id="darkModeToggle">
+                <span class="toggle-slider"></span>
+            </label>
+        </header>
+
+        <!-- Timer Display Section -->
+        <section class="timer-section" id="timerSection">
+            <div class="phase-indicator" id="phaseIndicator">Ready</div>
+            <div class="timer-display" id="timerDisplay">00:00</div>
+            <div class="progress-info" id="progressInfo">
+                <div class="round-info" id="roundInfo"></div>
+                <div class="set-info" id="setInfo"></div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            
+            <!-- Control Buttons -->
+            <div class="control-buttons">
+                <button id="startBtn" class="btn btn-primary">Start</button>
+                <button id="pauseBtn" class="btn btn-secondary" style="display: none;">Pause</button>
+                <button id="resetBtn" class="btn btn-secondary">Reset</button>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section class="settings-section">
+            <h2>Settings</h2>
+            <div class="setting-toggle">
+                <label for="enableSounds">
+                    <input type="checkbox" id="enableSounds" checked>
+                    Enable sounds
+                </label>
+            </div>
+            <div class="setting-toggle">
+                <label for="enableVibration">
+                    <input type="checkbox" id="enableVibration" checked>
+                    Enable vibration
+                </label>
+            </div>
+        </section>
+
+        <!-- Workout Configuration Form -->
+        <section class="form-section">
+            <h2>Workout Configuration</h2>
+            <form id="workoutForm">
+                <div class="form-group">
+                    <label for="workoutName">Workout Name</label>
+                    <input type="text" id="workoutName" placeholder="e.g., Leg Day, Tabata Pushups" maxlength="50">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="warmupDuration">Warm-up (seconds)</label>
+                        <input type="number" id="warmupDuration" min="0" value="0" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="workDuration">Work (seconds)</label>
+                        <input type="number" id="workDuration" min="1" value="30" step="1" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="restDuration">Rest Between Sets (seconds)</label>
+                        <input type="number" id="restDuration" min="0" value="10" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="longRestDuration">Long Rest Between Rounds (seconds)</label>
+                        <input type="number" id="longRestDuration" min="0" value="60" step="1">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setsPerRound">Sets Per Round</label>
+                        <input type="number" id="setsPerRound" min="1" value="4" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="numberOfRounds">Number of Rounds</label>
+                        <input type="number" id="numberOfRounds" min="1" value="1" step="1" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="savePresetBtn" class="btn btn-secondary">Save Preset</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Presets Section -->
+        <section class="presets-section">
+            <h2>Saved Presets</h2>
+            <div id="presetsList" class="presets-list">
+                <p class="no-presets">No presets saved yet. Configure a workout and click "Save Preset" to create one.</p>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+    
+    <script>
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>
+
