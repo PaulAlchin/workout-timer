@@ -38,6 +38,7 @@ let workoutState = {
     isRunning: false,
     isCompleting: false, // Flag to prevent multiple completion dialogs
     isTransitioning: false, // Flag to prevent multiple phase transitions
+    wakeLock: null, // Screen wake lock to prevent screen from sleeping
     
     // Phase tracking for transitions
     phaseSequence: [],
@@ -203,6 +204,9 @@ function startTimer() {
     // Disable form inputs during workout
     disableFormInputs(true);
     
+    // Request screen wake lock to prevent device from sleeping
+    requestWakeLock();
+    
     // Start the interval
     workoutState.intervalId = setInterval(updateTimer, 100);
     
@@ -345,6 +349,9 @@ function resetTimer() {
         workoutState.intervalId = null;
     }
     
+    // Release screen wake lock
+    releaseWakeLock();
+    
     // Reset state
     workoutState.isRunning = false;
     workoutState.isPaused = false;
@@ -387,6 +394,9 @@ function completeWorkout() {
         clearInterval(workoutState.intervalId);
         workoutState.intervalId = null;
     }
+    
+    // Release screen wake lock
+    releaseWakeLock();
     
     workoutState.isRunning = false;
     workoutState.currentPhase = 'complete';
@@ -647,6 +657,71 @@ function vibrate(pattern) {
             navigator.vibrate(pattern);
         } catch (e) {
             console.warn('Vibration failed:', e);
+        }
+    }
+}
+
+// ============================================================================
+// SCREEN WAKE LOCK
+// ============================================================================
+
+/**
+ * Requests a screen wake lock to prevent the device from sleeping
+ */
+async function requestWakeLock() {
+    // Check if wake lock API is available
+    if (!('wakeLock' in navigator)) {
+        console.log('Screen Wake Lock API not supported in this browser');
+        return;
+    }
+    
+    try {
+        // Release any existing wake lock first
+        if (workoutState.wakeLock) {
+            await releaseWakeLock();
+        }
+        
+        // Request wake lock
+        workoutState.wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Screen wake lock acquired');
+        
+        // Handle wake lock release (e.g., if user switches tabs or device locks)
+        workoutState.wakeLock.addEventListener('release', () => {
+            console.log('Screen wake lock released');
+            workoutState.wakeLock = null;
+        });
+        
+    } catch (err) {
+        // Wake lock request failed (e.g., user denied permission, or already active)
+        console.warn('Screen wake lock request failed:', err.name, err.message);
+        workoutState.wakeLock = null;
+    }
+}
+
+/**
+ * Releases the screen wake lock
+ */
+async function releaseWakeLock() {
+    if (workoutState.wakeLock) {
+        try {
+            await workoutState.wakeLock.release();
+            workoutState.wakeLock = null;
+            console.log('Screen wake lock released');
+        } catch (err) {
+            console.warn('Error releasing wake lock:', err);
+            workoutState.wakeLock = null;
+        }
+    }
+}
+
+/**
+ * Handles page visibility changes to reacquire wake lock if needed
+ */
+async function handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+        // Page became visible again - reacquire wake lock if timer is running
+        if (workoutState.isRunning && !workoutState.isPaused) {
+            await requestWakeLock();
         }
     }
 }
@@ -921,6 +996,9 @@ function initEventListeners() {
             initAudioContext();
         }
     }, { once: true });
+    
+    // Handle page visibility changes to reacquire wake lock if needed
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
 // ============================================================================
