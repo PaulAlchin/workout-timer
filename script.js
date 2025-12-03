@@ -672,6 +672,26 @@ async function requestWakeLock() {
     // Check if wake lock API is available
     if (!('wakeLock' in navigator)) {
         console.log('Screen Wake Lock API not supported in this browser');
+        // On iOS, provide helpful message
+        if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                                 window.navigator.standalone === true;
+            if (!isStandalone) {
+                console.log('iOS: To prevent screen from sleeping, add this app to your home screen and open it from there.');
+            }
+        }
+        return;
+    }
+    
+    // Check if running in standalone/PWA mode on iOS (required for wake lock)
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         window.navigator.standalone === true ||
+                         document.referrer.includes('android-app://');
+    
+    if (isIOS && !isStandalone) {
+        console.warn('iOS: Wake Lock only works when app is added to home screen and opened from there');
+        console.log('Please add this app to your home screen: Safari menu → Share → Add to Home Screen');
         return;
     }
     
@@ -683,7 +703,7 @@ async function requestWakeLock() {
         
         // Request wake lock
         workoutState.wakeLock = await navigator.wakeLock.request('screen');
-        console.log('Screen wake lock acquired');
+        console.log('Screen wake lock acquired successfully');
         
         // Handle wake lock release (e.g., if user switches tabs or device locks)
         workoutState.wakeLock.addEventListener('release', () => {
