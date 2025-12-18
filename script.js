@@ -23,11 +23,15 @@ let workoutState = {
         numberOfRounds: 1
     },
     
+    // Workout mode
+    workoutMode: 'normal', // 'normal' or 'headToHead'
+    
     // Current timer state
     currentPhase: 'ready', // 'ready', 'warmup', 'work', 'rest', 'longRest', 'complete'
     currentRound: 0,
     currentSet: 0,
     nextSet: 0, // For rest phases: the next set we're resting before
+    currentPerson: 0, // For head-to-head mode: current person number (1-based)
     timeRemaining: 0,
     totalWorkoutTime: 0,
     elapsedTime: 0,
@@ -57,6 +61,7 @@ const elements = {
     // Timer display
     timerSection: document.getElementById('timerSection'),
     phaseIndicator: document.getElementById('phaseIndicator'),
+    currentPerson: document.getElementById('currentPerson'),
     timerDisplay: document.getElementById('timerDisplay'),
     roundInfo: document.getElementById('roundInfo'),
     setInfo: document.getElementById('setInfo'),
@@ -72,7 +77,13 @@ const elements = {
     enableVibration: document.getElementById('enableVibration'),
     darkModeToggle: document.getElementById('darkModeToggle'),
     
-    // Form
+    // Mode toggle
+    normalMode: document.getElementById('normalMode'),
+    headToHeadMode: document.getElementById('headToHeadMode'),
+    normalFormSection: document.getElementById('normalFormSection'),
+    headToHeadFormSection: document.getElementById('headToHeadFormSection'),
+    
+    // Normal form
     workoutForm: document.getElementById('workoutForm'),
     workoutName: document.getElementById('workoutName'),
     warmupDuration: document.getElementById('warmupDuration'),
@@ -82,14 +93,56 @@ const elements = {
     setsPerRound: document.getElementById('setsPerRound'),
     numberOfRounds: document.getElementById('numberOfRounds'),
     
+    // Head-to-head form
+    headToHeadForm: document.getElementById('headToHeadForm'),
+    workoutNameHeadToHead: document.getElementById('workoutNameHeadToHead'),
+    numberOfPeople: document.getElementById('numberOfPeople'),
+    workDurationHeadToHead: document.getElementById('workDurationHeadToHead'),
+    numberOfRoundsHeadToHead: document.getElementById('numberOfRoundsHeadToHead'),
+    
     // Presets
     savePresetBtn: document.getElementById('savePresetBtn'),
+    savePresetHeadToHeadBtn: document.getElementById('savePresetHeadToHeadBtn'),
     presetsList: document.getElementById('presetsList')
 };
 
 // ============================================================================
 // TIMER ENGINE
 // ============================================================================
+
+/**
+ * Builds the head-to-head rotation phase sequence
+ * Each round: all people work consecutively with no rest
+ */
+function buildHeadToHeadSequence() {
+    const sequence = [];
+    const config = workoutState.config;
+    
+    // Build rounds
+    for (let round = 1; round <= config.numberOfRounds; round++) {
+        // Add work phase for each person
+        for (let person = 1; person <= config.numberOfPeople; person++) {
+            sequence.push({
+                type: 'work',
+                duration: config.workDuration,
+                round: round,
+                person: person,
+                set: 0 // Not used in head-to-head mode
+            });
+        }
+        // No rest between people or rounds in head-to-head mode
+    }
+    
+    workoutState.phaseSequence = sequence;
+    workoutState.currentPhaseIndex = 0;
+    
+    // Calculate total workout time
+    workoutState.totalWorkoutTime = sequence.reduce((sum, phase) => sum + phase.duration, 0);
+    
+    // Debug: log the phase sequence
+    console.log('Head-to-head phase sequence built:', sequence.length, 'phases');
+    console.log('Sequence:', sequence.map((p, i) => `${i}: ${p.type} R${p.round} P${p.person}`).join(', '));
+}
 
 /**
  * Builds the phase sequence array based on workout configuration
@@ -165,22 +218,36 @@ function startTimer() {
         workoutState.hasInteracted = true;
     }
     
-    // Load configuration from form
+    // Load configuration from form based on mode
     loadConfigFromForm();
     
-    // Validate configuration
-    if (workoutState.config.workDuration <= 0) {
-        alert('Work duration must be greater than 0');
-        return;
+    // Validate configuration based on mode
+    if (workoutState.workoutMode === 'headToHead') {
+        if (workoutState.config.workDuration <= 0) {
+            alert('Work duration must be greater than 0');
+            return;
+        }
+        if (workoutState.config.numberOfPeople <= 0 || workoutState.config.numberOfRounds <= 0) {
+            alert('Number of people and number of rounds must be greater than 0');
+            return;
+        }
+    } else {
+        if (workoutState.config.workDuration <= 0) {
+            alert('Work duration must be greater than 0');
+            return;
+        }
+        if (workoutState.config.setsPerRound <= 0 || workoutState.config.numberOfRounds <= 0) {
+            alert('Sets per round and number of rounds must be greater than 0');
+            return;
+        }
     }
     
-    if (workoutState.config.setsPerRound <= 0 || workoutState.config.numberOfRounds <= 0) {
-        alert('Sets per round and number of rounds must be greater than 0');
-        return;
+    // Build phase sequence based on mode
+    if (workoutState.workoutMode === 'headToHead') {
+        buildHeadToHeadSequence();
+    } else {
+        buildPhaseSequence();
     }
-    
-    // Build phase sequence
-    buildPhaseSequence();
     
     if (workoutState.phaseSequence.length === 0) {
         alert('Invalid workout configuration');
@@ -237,11 +304,16 @@ function loadCurrentPhase() {
     workoutState.currentPhase = phase.type;
     workoutState.timeRemaining = phase.duration;
     workoutState.currentRound = phase.round;
-    workoutState.currentSet = phase.set;
+    workoutState.currentSet = phase.set || 0;
     workoutState.nextSet = phase.nextSet || 0; // Store next set for rest phases
+    workoutState.currentPerson = phase.person || 0; // Store current person for head-to-head mode
     
     // Debug log
-    console.log(`Phase ${workoutState.currentPhaseIndex}: ${phase.type}, Round ${workoutState.currentRound}, Set ${workoutState.currentSet}${workoutState.nextSet ? ', Next: ' + workoutState.nextSet : ''}`);
+    if (workoutState.workoutMode === 'headToHead') {
+        console.log(`Phase ${workoutState.currentPhaseIndex}: ${phase.type}, Round ${workoutState.currentRound}, Person ${workoutState.currentPerson}`);
+    } else {
+        console.log(`Phase ${workoutState.currentPhaseIndex}: ${phase.type}, Round ${workoutState.currentRound}, Set ${workoutState.currentSet}${workoutState.nextSet ? ', Next: ' + workoutState.nextSet : ''}`);
+    }
     
     updateDisplay();
 }
@@ -305,10 +377,16 @@ function updateTimer() {
                     return;
                 }
                 
-                // Different sound for round start
-                if (nextPhase.type === 'work' && nextPhase.set === 1 && nextPhase.round > workoutState.currentRound) {
-                    playBeep('roundStart');
-                    vibrate([200, 100, 200]);
+                // Head-to-head mode: sound and vibration when switching to next person
+                if (workoutState.workoutMode === 'headToHead' && nextPhase.type === 'work') {
+                    playBeep('end'); // Beep for person transition
+                    vibrate([100]); // Vibration for person transition
+                } else if (workoutState.workoutMode === 'normal') {
+                    // Normal mode: different sound for round start
+                    if (nextPhase.type === 'work' && nextPhase.set === 1 && nextPhase.round > workoutState.currentRound) {
+                        playBeep('roundStart');
+                        vibrate([200, 100, 200]);
+                    }
                 }
                 
                 loadCurrentPhase();
@@ -362,6 +440,7 @@ function resetTimer() {
     workoutState.currentRound = 0;
     workoutState.currentSet = 0;
     workoutState.nextSet = 0;
+    workoutState.currentPerson = 0;
     workoutState.timeRemaining = 0;
     workoutState.elapsedTime = 0;
     
@@ -469,36 +548,65 @@ function updateDisplay() {
         elements.timerSection.classList.add(`phase-${workoutState.currentPhase}`);
     }
     
-    // Update round and set info
-    if (workoutState.currentPhase === 'warmup') {
-        elements.roundInfo.textContent = '';
-        elements.setInfo.textContent = '';
-    } else if (workoutState.currentPhase === 'complete') {
-        elements.roundInfo.textContent = 'Workout Complete!';
-        elements.setInfo.textContent = '';
-    } else if (workoutState.currentRound > 0) {
-        elements.roundInfo.textContent = `Round ${workoutState.currentRound} of ${workoutState.config.numberOfRounds}`;
-        
-        if (workoutState.currentPhase === 'work') {
-            // During work phase, show the current set from the phase
-            const currentPhaseObj = workoutState.phaseSequence[workoutState.currentPhaseIndex];
-            const displaySet = currentPhaseObj ? currentPhaseObj.set : workoutState.currentSet;
-            elements.setInfo.textContent = `Set ${displaySet} of ${workoutState.config.setsPerRound}`;
-        } else if (workoutState.currentPhase === 'rest') {
-            // During rest phase, show the next set we're resting before
-            const currentPhaseObj = workoutState.phaseSequence[workoutState.currentPhaseIndex];
-            const nextSet = currentPhaseObj ? (currentPhaseObj.nextSet || workoutState.nextSet) : workoutState.nextSet;
-            
-            if (nextSet > 0 && nextSet <= workoutState.config.setsPerRound) {
-                elements.setInfo.textContent = `Rest before Set ${nextSet} of ${workoutState.config.setsPerRound}`;
-            } else {
-                // Fallback: show the set we just completed
-                elements.setInfo.textContent = `Set ${workoutState.currentSet} - Rest`;
-            }
-        } else if (workoutState.currentPhase === 'longRest') {
-            elements.setInfo.textContent = 'Rest between rounds';
+    // Head-to-head mode display
+    if (workoutState.workoutMode === 'headToHead') {
+        // Show/hide current person display
+        if (workoutState.currentPhase === 'work' && workoutState.currentPerson > 0) {
+            elements.currentPerson.style.display = 'block';
+            elements.currentPerson.textContent = `Person ${workoutState.currentPerson}`;
         } else {
+            elements.currentPerson.style.display = 'none';
+        }
+        
+        // Update round and person info
+        if (workoutState.currentPhase === 'complete') {
+            elements.roundInfo.textContent = 'Workout Complete!';
             elements.setInfo.textContent = '';
+        } else if (workoutState.currentRound > 0) {
+            elements.roundInfo.textContent = `Round ${workoutState.currentRound} of ${workoutState.config.numberOfRounds}`;
+            if (workoutState.currentPerson > 0) {
+                elements.setInfo.textContent = `Person ${workoutState.currentPerson} of ${workoutState.config.numberOfPeople}`;
+            } else {
+                elements.setInfo.textContent = '';
+            }
+        } else {
+            elements.roundInfo.textContent = '';
+            elements.setInfo.textContent = '';
+        }
+    } else {
+        // Normal mode display
+        elements.currentPerson.style.display = 'none';
+        
+        if (workoutState.currentPhase === 'warmup') {
+            elements.roundInfo.textContent = '';
+            elements.setInfo.textContent = '';
+        } else if (workoutState.currentPhase === 'complete') {
+            elements.roundInfo.textContent = 'Workout Complete!';
+            elements.setInfo.textContent = '';
+        } else if (workoutState.currentRound > 0) {
+            elements.roundInfo.textContent = `Round ${workoutState.currentRound} of ${workoutState.config.numberOfRounds}`;
+            
+            if (workoutState.currentPhase === 'work') {
+                // During work phase, show the current set from the phase
+                const currentPhaseObj = workoutState.phaseSequence[workoutState.currentPhaseIndex];
+                const displaySet = currentPhaseObj ? currentPhaseObj.set : workoutState.currentSet;
+                elements.setInfo.textContent = `Set ${displaySet} of ${workoutState.config.setsPerRound}`;
+            } else if (workoutState.currentPhase === 'rest') {
+                // During rest phase, show the next set we're resting before
+                const currentPhaseObj = workoutState.phaseSequence[workoutState.currentPhaseIndex];
+                const nextSet = currentPhaseObj ? (currentPhaseObj.nextSet || workoutState.nextSet) : workoutState.nextSet;
+                
+                if (nextSet > 0 && nextSet <= workoutState.config.setsPerRound) {
+                    elements.setInfo.textContent = `Rest before Set ${nextSet} of ${workoutState.config.setsPerRound}`;
+                } else {
+                    // Fallback: show the set we just completed
+                    elements.setInfo.textContent = `Set ${workoutState.currentSet} - Rest`;
+                }
+            } else if (workoutState.currentPhase === 'longRest') {
+                elements.setInfo.textContent = 'Rest between rounds';
+            } else {
+                elements.setInfo.textContent = '';
+            }
         }
     }
     
@@ -520,23 +628,35 @@ function updateProgressBar() {
 }
 
 /**
- * Disables or enables form inputs
+ * Disables or enables form inputs based on current mode
  */
 function disableFormInputs(disable) {
-    const inputs = [
-        elements.workoutName,
-        elements.warmupDuration,
-        elements.workDuration,
-        elements.restDuration,
-        elements.longRestDuration,
-        elements.setsPerRound,
-        elements.numberOfRounds,
-        elements.savePresetBtn
-    ];
-    
-    inputs.forEach(input => {
-        input.disabled = disable;
-    });
+    if (workoutState.workoutMode === 'headToHead') {
+        const inputs = [
+            elements.workoutNameHeadToHead,
+            elements.numberOfPeople,
+            elements.workDurationHeadToHead,
+            elements.numberOfRoundsHeadToHead,
+            elements.savePresetHeadToHeadBtn
+        ];
+        inputs.forEach(input => {
+            if (input) input.disabled = disable;
+        });
+    } else {
+        const inputs = [
+            elements.workoutName,
+            elements.warmupDuration,
+            elements.workDuration,
+            elements.restDuration,
+            elements.longRestDuration,
+            elements.setsPerRound,
+            elements.numberOfRounds,
+            elements.savePresetBtn
+        ];
+        inputs.forEach(input => {
+            if (input) input.disabled = disable;
+        });
+    }
 }
 
 // ============================================================================
@@ -544,31 +664,54 @@ function disableFormInputs(disable) {
 // ============================================================================
 
 /**
- * Loads configuration from form inputs
+ * Loads configuration from form inputs based on current mode
  */
 function loadConfigFromForm() {
-    workoutState.config = {
-        workoutName: elements.workoutName.value.trim(),
-        warmupDuration: parseInt(elements.warmupDuration.value) || 0,
-        workDuration: parseInt(elements.workDuration.value) || 30,
-        restDuration: parseInt(elements.restDuration.value) || 0,
-        longRestDuration: parseInt(elements.longRestDuration.value) || 0,
-        setsPerRound: parseInt(elements.setsPerRound.value) || 1,
-        numberOfRounds: parseInt(elements.numberOfRounds.value) || 1
-    };
+    if (workoutState.workoutMode === 'headToHead') {
+        workoutState.config = {
+            workoutName: elements.workoutNameHeadToHead.value.trim(),
+            workDuration: parseInt(elements.workDurationHeadToHead.value) || 30,
+            numberOfPeople: parseInt(elements.numberOfPeople.value) || 3,
+            numberOfRounds: parseInt(elements.numberOfRoundsHeadToHead.value) || 1,
+            // Not used in head-to-head mode
+            warmupDuration: 0,
+            restDuration: 0,
+            longRestDuration: 0,
+            setsPerRound: 0
+        };
+    } else {
+        workoutState.config = {
+            workoutName: elements.workoutName.value.trim(),
+            warmupDuration: parseInt(elements.warmupDuration.value) || 0,
+            workDuration: parseInt(elements.workDuration.value) || 30,
+            restDuration: parseInt(elements.restDuration.value) || 0,
+            longRestDuration: parseInt(elements.longRestDuration.value) || 0,
+            setsPerRound: parseInt(elements.setsPerRound.value) || 1,
+            numberOfRounds: parseInt(elements.numberOfRounds.value) || 1,
+            // Not used in normal mode
+            numberOfPeople: 0
+        };
+    }
 }
 
 /**
- * Populates form inputs from configuration object
+ * Populates form inputs from configuration object based on mode
  */
-function populateFormFromConfig(config) {
-    elements.workoutName.value = config.workoutName || '';
-    elements.warmupDuration.value = config.warmupDuration || 0;
-    elements.workDuration.value = config.workDuration || 30;
-    elements.restDuration.value = config.restDuration || 0;
-    elements.longRestDuration.value = config.longRestDuration || 0;
-    elements.setsPerRound.value = config.setsPerRound || 1;
-    elements.numberOfRounds.value = config.numberOfRounds || 1;
+function populateFormFromConfig(config, mode) {
+    if (mode === 'headToHead') {
+        elements.workoutNameHeadToHead.value = config.workoutName || '';
+        elements.workDurationHeadToHead.value = config.workDuration || 30;
+        elements.numberOfPeople.value = config.numberOfPeople || 3;
+        elements.numberOfRoundsHeadToHead.value = config.numberOfRounds || 1;
+    } else {
+        elements.workoutName.value = config.workoutName || '';
+        elements.warmupDuration.value = config.warmupDuration || 0;
+        elements.workDuration.value = config.workDuration || 30;
+        elements.restDuration.value = config.restDuration || 0;
+        elements.longRestDuration.value = config.longRestDuration || 0;
+        elements.setsPerRound.value = config.setsPerRound || 1;
+        elements.numberOfRounds.value = config.numberOfRounds || 1;
+    }
 }
 
 // ============================================================================
@@ -759,19 +902,26 @@ const SETTINGS_STORAGE_KEY = 'workoutTimer_settings';
 function savePreset() {
     loadConfigFromForm();
     
-    if (!workoutState.config.workoutName) {
+    const workoutName = workoutState.config.workoutName;
+    if (!workoutName) {
+        const nameField = workoutState.workoutMode === 'headToHead' 
+            ? elements.workoutNameHeadToHead 
+            : elements.workoutName;
         alert('Please enter a workout name to save as preset');
-        elements.workoutName.focus();
+        if (nameField) nameField.focus();
         return;
     }
     
     try {
         const presets = loadPresetsFromStorage();
-        presets[workoutState.config.workoutName] = { ...workoutState.config };
+        presets[workoutName] = { 
+            ...workoutState.config,
+            mode: workoutState.workoutMode // Include mode in preset
+        };
         localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
         
         loadPresets();
-        alert(`Preset "${workoutState.config.workoutName}" saved!`);
+        alert(`Preset "${workoutName}" saved!`);
     } catch (e) {
         console.error('Error saving preset:', e);
         alert('Error saving preset. localStorage may not be available.');
@@ -805,9 +955,11 @@ function loadPresets() {
     }
     
     elements.presetsList.innerHTML = presetNames.map(name => {
+        const preset = presets[name];
+        const modeLabel = preset.mode === 'headToHead' ? ' (Head-to-Head)' : ' (Normal)';
         return `
             <div class="preset-item">
-                <span class="preset-name" onclick="loadPreset('${name.replace(/'/g, "\\'")}')">${escapeHtml(name)}</span>
+                <span class="preset-name" onclick="loadPreset('${name.replace(/'/g, "\\'")}')">${escapeHtml(name)}${modeLabel}</span>
                 <div class="preset-actions">
                     <button class="btn btn-secondary btn-small" onclick="loadPreset('${name.replace(/'/g, "\\'")}')">Load</button>
                     <button class="btn btn-danger btn-small" onclick="deletePreset('${name.replace(/'/g, "\\'")}')">Delete</button>
@@ -836,7 +988,22 @@ function loadPreset(name) {
         resetTimer();
     }
     
-    populateFormFromConfig(presets[name]);
+    const preset = presets[name];
+    const presetMode = preset.mode || 'normal'; // Default to normal mode for old presets
+    
+    // Switch to the preset's mode
+    workoutState.workoutMode = presetMode;
+    if (presetMode === 'headToHead') {
+        elements.headToHeadMode.checked = true;
+    } else {
+        elements.normalMode.checked = true;
+    }
+    
+    // Update form visibility
+    updateFormVisibility();
+    
+    // Populate form with preset data
+    populateFormFromConfig(preset, presetMode);
     loadConfigFromForm();
 }
 
@@ -886,7 +1053,8 @@ function saveSettings() {
             soundsEnabled: workoutState.soundsEnabled,
             vibrationEnabled: workoutState.vibrationEnabled,
             darkMode: document.documentElement.getAttribute('data-theme') === 'dark',
-            lastConfig: workoutState.config
+            lastConfig: workoutState.config,
+            lastMode: workoutState.workoutMode
         };
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {
@@ -917,9 +1085,9 @@ function loadSettings() {
             elements.darkModeToggle.checked = true;
         }
         
-        // Restore last config if available
-        if (settings.lastConfig) {
-            populateFormFromConfig(settings.lastConfig);
+        // Restore last config if available (only if mode matches)
+        if (settings.lastConfig && settings.lastMode === workoutState.workoutMode) {
+            populateFormFromConfig(settings.lastConfig, workoutState.workoutMode);
             loadConfigFromForm();
         }
     } catch (e) {
@@ -932,9 +1100,37 @@ function loadSettings() {
 // ============================================================================
 
 /**
+ * Updates form visibility based on selected mode
+ */
+function updateFormVisibility() {
+    if (workoutState.workoutMode === 'headToHead') {
+        elements.normalFormSection.style.display = 'none';
+        elements.headToHeadFormSection.style.display = 'block';
+    } else {
+        elements.normalFormSection.style.display = 'block';
+        elements.headToHeadFormSection.style.display = 'none';
+    }
+}
+
+/**
  * Initializes all event listeners
  */
 function initEventListeners() {
+    // Mode toggle handlers
+    elements.normalMode.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            workoutState.workoutMode = 'normal';
+            updateFormVisibility();
+        }
+    });
+    
+    elements.headToHeadMode.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            workoutState.workoutMode = 'headToHead';
+            updateFormVisibility();
+        }
+    });
+    
     // Control buttons
     elements.startBtn.addEventListener('click', () => {
         initAudioContext();
@@ -983,8 +1179,9 @@ function initEventListeners() {
         saveSettings();
     });
     
-    // Save preset button
+    // Save preset buttons
     elements.savePresetBtn.addEventListener('click', savePreset);
+    elements.savePresetHeadToHeadBtn.addEventListener('click', savePreset);
     
     // Save config on form changes (for last-used settings)
     const formInputs = [
@@ -1032,6 +1229,9 @@ function init() {
     // Load settings and presets
     loadSettings();
     loadPresets();
+    
+    // Initialize form visibility based on current mode
+    updateFormVisibility();
     
     // Initialize event listeners
     initEventListeners();

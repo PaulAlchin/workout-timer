@@ -23,6 +23,7 @@
         <!-- Timer Display Section -->
         <section class="timer-section" id="timerSection">
             <div class="phase-indicator" id="phaseIndicator">Ready</div>
+            <div class="current-person" id="currentPerson" style="display: none;"></div>
             <div class="timer-display" id="timerDisplay">00:00</div>
             <div class="progress-info" id="progressInfo">
                 <div class="round-info" id="roundInfo"></div>
@@ -37,6 +38,21 @@
                 <button id="startBtn" class="btn btn-primary">Start</button>
                 <button id="pauseBtn" class="btn btn-secondary" style="display: none;">Pause</button>
                 <button id="resetBtn" class="btn btn-secondary">Reset</button>
+            </div>
+        </section>
+
+        <!-- Mode Toggle Section -->
+        <section class="mode-section">
+            <h2>Workout Mode</h2>
+            <div class="mode-toggle">
+                <label class="mode-option">
+                    <input type="radio" name="workoutMode" id="normalMode" value="normal" checked>
+                    <span>Normal Timer</span>
+                </label>
+                <label class="mode-option">
+                    <input type="radio" name="workoutMode" id="headToHeadMode" value="headToHead">
+                    <span>Head-to-Head Rotation</span>
+                </label>
             </div>
         </section>
 
@@ -57,8 +73,8 @@
             </div>
         </section>
 
-        <!-- Workout Configuration Form -->
-        <section class="form-section">
+        <!-- Normal Workout Configuration Form -->
+        <section class="form-section" id="normalFormSection">
             <h2>Workout Configuration</h2>
             <form id="workoutForm">
                 <div class="form-group">
@@ -101,6 +117,48 @@
 
                 <div class="form-actions">
                     <button type="button" id="savePresetBtn" class="btn btn-secondary">Save Preset</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Head-to-Head Configuration Form -->
+        <section class="form-section" id="headToHeadFormSection" style="display: none;">
+            <h2>Head-to-Head Configuration</h2>
+            <form id="headToHeadForm">
+                <div class="form-group">
+                    <label for="workoutNameHeadToHead">Workout Name</label>
+                    <input type="text" id="workoutNameHeadToHead" placeholder="e.g., Rotation Workout" maxlength="50">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="numberOfPeople">Number of People</label>
+                        <select id="numberOfPeople" required>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="workDurationHeadToHead">Work Duration Per Person (seconds)</label>
+                        <input type="number" id="workDurationHeadToHead" min="1" value="30" step="1" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="numberOfRoundsHeadToHead">Number of Rounds</label>
+                    <input type="number" id="numberOfRoundsHeadToHead" min="1" value="3" step="1" required>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="savePresetHeadToHeadBtn" class="btn btn-secondary">Save Preset</button>
                 </div>
             </form>
         </section>
