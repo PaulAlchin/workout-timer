@@ -92,9 +92,16 @@
 
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="setupDuration">Setup Timer (seconds)</label>
+                        <input type="number" id="setupDuration" min="0" value="10" step="1">
+                    </div>
+                    <div class="form-group">
                         <label for="warmupDuration">Warm-up (seconds)</label>
                         <input type="number" id="warmupDuration" min="0" value="0" step="1">
                     </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="workDuration">Work (seconds)</label>
                         <input type="number" id="workDuration" min="1" value="30" step="1" required>
@@ -157,6 +164,13 @@
                     <div class="form-group">
                         <label for="workDurationHeadToHead">Work Duration Per Person (seconds)</label>
                         <input type="number" id="workDurationHeadToHead" min="1" value="30" step="1" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setupDurationHeadToHead">Setup Timer (seconds)</label>
+                        <input type="number" id="setupDurationHeadToHead" min="0" value="10" step="1">
                     </div>
                 </div>
 

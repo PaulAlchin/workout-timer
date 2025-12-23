@@ -15,6 +15,7 @@ let workoutState = {
     // Configuration from form
     config: {
         workoutName: '',
+        setupDuration: 10,
         warmupDuration: 0,
         workDuration: 30,
         restDuration: 10,
@@ -95,6 +96,7 @@ const elements = {
     // Normal form
     workoutForm: document.getElementById('workoutForm'),
     workoutName: document.getElementById('workoutName'),
+    setupDuration: document.getElementById('setupDuration'),
     warmupDuration: document.getElementById('warmupDuration'),
     workDuration: document.getElementById('workDuration'),
     restDuration: document.getElementById('restDuration'),
@@ -107,6 +109,7 @@ const elements = {
     workoutNameHeadToHead: document.getElementById('workoutNameHeadToHead'),
     numberOfPeople: document.getElementById('numberOfPeople'),
     workDurationHeadToHead: document.getElementById('workDurationHeadToHead'),
+    setupDurationHeadToHead: document.getElementById('setupDurationHeadToHead'),
     numberOfRoundsHeadToHead: document.getElementById('numberOfRoundsHeadToHead'),
     
     // Presets
@@ -120,12 +123,52 @@ const elements = {
 // ============================================================================
 
 /**
+ * Color palette for different people in head-to-head mode
+ * Colors cycle through this array (person 11 uses person 1's color, etc.)
+ */
+const PERSON_COLORS = [
+    '#4CAF50', // Person 1: Green
+    '#2196F3', // Person 2: Blue
+    '#FF9800', // Person 3: Orange
+    '#9C27B0', // Person 4: Purple
+    '#F44336', // Person 5: Red
+    '#009688', // Person 6: Teal
+    '#E91E63', // Person 7: Pink
+    '#FFC107', // Person 8: Amber
+    '#3F51B5', // Person 9: Indigo
+    '#00BCD4'  // Person 10: Cyan
+];
+
+/**
+ * Gets the color for a specific person number in head-to-head mode
+ * @param {number} personNumber - The person number (1-based)
+ * @returns {string} Hex color code
+ */
+function getPersonColor(personNumber) {
+    if (personNumber < 1) return PERSON_COLORS[0];
+    // Cycle through colors (person 11 uses person 1's color, etc.)
+    const index = (personNumber - 1) % PERSON_COLORS.length;
+    return PERSON_COLORS[index];
+}
+
+/**
  * Builds the head-to-head rotation phase sequence
  * Each round: all people work consecutively with no rest
  */
 function buildHeadToHeadSequence() {
     const sequence = [];
     const config = workoutState.config;
+    
+    // Add setup phase before first round if duration > 0
+    if (config.setupDuration > 0) {
+        sequence.push({
+            type: 'setup',
+            duration: config.setupDuration,
+            round: 0,
+            person: 0,
+            set: 0
+        });
+    }
     
     // Build rounds
     for (let round = 1; round <= config.numberOfRounds; round++) {
@@ -155,11 +198,21 @@ function buildHeadToHeadSequence() {
 
 /**
  * Builds the phase sequence array based on workout configuration
- * Phase sequence: warmup (if > 0) → [round: (work → rest)*sets → longRest]*rounds
+ * Phase sequence: setup (if > 0) → warmup (if > 0) → [round: (work → rest)*sets → longRest]*rounds
  */
 function buildPhaseSequence() {
     const sequence = [];
     const config = workoutState.config;
+    
+    // Add setup phase before warmup if duration > 0
+    if (config.setupDuration > 0) {
+        sequence.push({
+            type: 'setup',
+            duration: config.setupDuration,
+            round: 0,
+            set: 0
+        });
+    }
     
     // Add warm-up phase if duration > 0
     if (config.warmupDuration > 0) {
@@ -687,6 +740,7 @@ function updateDisplay() {
     // Update phase indicator
     const phaseLabels = {
         'ready': 'Ready',
+        'setup': 'Setup',
         'warmup': 'Warm-up',
         'work': 'Work',
         'rest': 'Rest',
@@ -704,6 +758,15 @@ function updateDisplay() {
     
     // Head-to-head mode display
     if (workoutState.workoutMode === 'headToHead') {
+        // Apply person-specific color for work phases
+        if (workoutState.currentPhase === 'work' && workoutState.currentPerson > 0) {
+            const personColor = getPersonColor(workoutState.currentPerson);
+            elements.timerSection.style.backgroundColor = personColor;
+        } else {
+            // Reset to default phase color
+            elements.timerSection.style.backgroundColor = '';
+        }
+        
         // Show/hide current person display
         if (workoutState.currentPhase === 'work' && workoutState.currentPerson > 0) {
             elements.currentPerson.style.display = 'block';
@@ -731,7 +794,7 @@ function updateDisplay() {
         // Normal mode display
         elements.currentPerson.style.display = 'none';
         
-        if (workoutState.currentPhase === 'warmup') {
+        if (workoutState.currentPhase === 'setup' || workoutState.currentPhase === 'warmup') {
             elements.roundInfo.textContent = '';
             elements.setInfo.textContent = '';
         } else if (workoutState.currentPhase === 'complete') {
@@ -793,6 +856,7 @@ function disableFormInputs(disable) {
     if (workoutState.workoutMode === 'headToHead') {
         const inputs = [
             elements.workoutNameHeadToHead,
+            elements.setupDurationHeadToHead,
             elements.numberOfPeople,
             elements.workDurationHeadToHead,
             elements.numberOfRoundsHeadToHead,
@@ -804,6 +868,7 @@ function disableFormInputs(disable) {
     } else {
         const inputs = [
             elements.workoutName,
+            elements.setupDuration,
             elements.warmupDuration,
             elements.workDuration,
             elements.restDuration,
@@ -829,6 +894,7 @@ function loadConfigFromForm() {
     if (workoutState.workoutMode === 'headToHead') {
         workoutState.config = {
             workoutName: elements.workoutNameHeadToHead.value.trim(),
+            setupDuration: parseInt(elements.setupDurationHeadToHead.value) || 10,
             workDuration: parseInt(elements.workDurationHeadToHead.value) || 30,
             numberOfPeople: parseInt(elements.numberOfPeople.value) || 3,
             numberOfRounds: parseInt(elements.numberOfRoundsHeadToHead.value) || 1,
@@ -841,6 +907,7 @@ function loadConfigFromForm() {
     } else {
         workoutState.config = {
             workoutName: elements.workoutName.value.trim(),
+            setupDuration: parseInt(elements.setupDuration.value) || 10,
             warmupDuration: parseInt(elements.warmupDuration.value) || 0,
             workDuration: parseInt(elements.workDuration.value) || 30,
             restDuration: parseInt(elements.restDuration.value) || 0,
@@ -859,11 +926,13 @@ function loadConfigFromForm() {
 function populateFormFromConfig(config, mode) {
     if (mode === 'headToHead') {
         elements.workoutNameHeadToHead.value = config.workoutName || '';
+        elements.setupDurationHeadToHead.value = config.setupDuration !== undefined ? config.setupDuration : 10;
         elements.workDurationHeadToHead.value = config.workDuration || 30;
         elements.numberOfPeople.value = config.numberOfPeople || 3;
         elements.numberOfRoundsHeadToHead.value = config.numberOfRounds || 1;
     } else {
         elements.workoutName.value = config.workoutName || '';
+        elements.setupDuration.value = config.setupDuration !== undefined ? config.setupDuration : 10;
         elements.warmupDuration.value = config.warmupDuration || 0;
         elements.workDuration.value = config.workDuration || 30;
         elements.restDuration.value = config.restDuration || 0;
@@ -1413,6 +1482,7 @@ function initEventListeners() {
     // Save config on form changes (for last-used settings)
     const formInputs = [
         elements.workoutName,
+        elements.setupDuration,
         elements.warmupDuration,
         elements.workDuration,
         elements.restDuration,

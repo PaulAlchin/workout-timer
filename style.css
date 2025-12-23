@@ -191,6 +191,11 @@ input:checked + .toggle-slider:before {
 }
 
 /* Phase Colors */
+.timer-section.phase-setup {
+    background-color: #607D8B;
+    color: white;
+}
+
 .timer-section.phase-warmup {
     background-color: var(--phase-warmup);
     color: white;
@@ -270,6 +275,7 @@ input:checked + .toggle-slider:before {
     overflow: hidden;
 }
 
+.timer-section.phase-setup .progress-bar-container,
 .timer-section.phase-warmup .progress-bar-container,
 .timer-section.phase-work .progress-bar-container,
 .timer-section.phase-rest .progress-bar-container,
@@ -285,6 +291,7 @@ input:checked + .toggle-slider:before {
     border-radius: 4px;
 }
 
+.timer-section.phase-setup .progress-bar,
 .timer-section.phase-warmup .progress-bar,
 .timer-section.phase-work .progress-bar,
 .timer-section.phase-rest .progress-bar,
