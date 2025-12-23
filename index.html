@@ -33,10 +33,14 @@
                 <div class="progress-bar" id="progressBar"></div>
             </div>
             
+            <!-- Lap Times List (for stopwatch mode) -->
+            <div id="lapTimesList" class="lap-times-list" style="display: none;"></div>
+            
             <!-- Control Buttons -->
             <div class="control-buttons">
                 <button id="startBtn" class="btn btn-primary">Start</button>
                 <button id="pauseBtn" class="btn btn-secondary" style="display: none;">Pause</button>
+                <button id="lapBtn" class="btn btn-secondary" style="display: none;">Lap</button>
                 <button id="resetBtn" class="btn btn-secondary">Reset</button>
             </div>
         </section>
@@ -52,6 +56,10 @@
                 <label class="mode-option">
                     <input type="radio" name="workoutMode" id="headToHeadMode" value="headToHead">
                     <span>Head-to-Head Rotation</span>
+                </label>
+                <label class="mode-option">
+                    <input type="radio" name="workoutMode" id="stopwatchMode" value="stopwatch">
+                    <span>Stopwatch</span>
                 </label>
             </div>
         </section>

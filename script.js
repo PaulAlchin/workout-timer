@@ -24,7 +24,7 @@ let workoutState = {
     },
     
     // Workout mode
-    workoutMode: 'normal', // 'normal' or 'headToHead'
+    workoutMode: 'normal', // 'normal', 'headToHead', or 'stopwatch'
     
     // Current timer state
     currentPhase: 'ready', // 'ready', 'warmup', 'work', 'rest', 'longRest', 'complete'
@@ -35,6 +35,10 @@ let workoutState = {
     timeRemaining: 0,
     totalWorkoutTime: 0,
     elapsedTime: 0,
+    
+    // Stopwatch state
+    lapTimes: [], // Array of lap time objects: { lapNumber, time }
+    lapStartTime: 0, // Elapsed time when current lap started
     
     // Control state
     intervalId: null,
@@ -70,6 +74,7 @@ const elements = {
     // Controls
     startBtn: document.getElementById('startBtn'),
     pauseBtn: document.getElementById('pauseBtn'),
+    lapBtn: document.getElementById('lapBtn'),
     resetBtn: document.getElementById('resetBtn'),
     
     // Settings
@@ -80,8 +85,12 @@ const elements = {
     // Mode toggle
     normalMode: document.getElementById('normalMode'),
     headToHeadMode: document.getElementById('headToHeadMode'),
+    stopwatchMode: document.getElementById('stopwatchMode'),
     normalFormSection: document.getElementById('normalFormSection'),
     headToHeadFormSection: document.getElementById('headToHeadFormSection'),
+    
+    // Lap times
+    lapTimesList: document.getElementById('lapTimesList'),
     
     // Normal form
     workoutForm: document.getElementById('workoutForm'),
@@ -218,6 +227,12 @@ function startTimer() {
         workoutState.hasInteracted = true;
     }
     
+    // Handle stopwatch mode differently
+    if (workoutState.workoutMode === 'stopwatch') {
+        startStopwatch();
+        return;
+    }
+    
     // Load configuration from form based on mode
     loadConfigFromForm();
     
@@ -266,6 +281,11 @@ function startTimer() {
     // Update UI
     elements.startBtn.style.display = 'none';
     elements.pauseBtn.style.display = 'inline-block';
+    if (workoutState.workoutMode === 'stopwatch') {
+        elements.lapBtn.style.display = 'inline-block';
+    } else {
+        elements.lapBtn.style.display = 'none';
+    }
     elements.resetBtn.disabled = false;
     
     // Disable form inputs during workout
@@ -319,10 +339,44 @@ function loadCurrentPhase() {
 }
 
 /**
+ * Starts the stopwatch
+ */
+function startStopwatch() {
+    // Initialize stopwatch state
+    workoutState.isRunning = true;
+    workoutState.isPaused = false;
+    workoutState.elapsedTime = workoutState.elapsedTime || 0; // Preserve elapsed time if resuming
+    workoutState.lapStartTime = workoutState.elapsedTime; // Set lap start time
+    
+    // Update UI
+    elements.startBtn.style.display = 'none';
+    elements.pauseBtn.style.display = 'inline-block';
+    elements.lapBtn.style.display = 'inline-block';
+    elements.resetBtn.disabled = false;
+    
+    // Request screen wake lock
+    requestWakeLock();
+    
+    // Start the interval
+    workoutState.intervalId = setInterval(updateTimer, 100);
+    
+    // Play start sound
+    playBeep('start');
+    vibrate([100]);
+}
+
+/**
  * Main timer update function - called every 100ms
  */
 function updateTimer() {
     if (!workoutState.isRunning || workoutState.isPaused || workoutState.isTransitioning) {
+        return;
+    }
+    
+    // Handle stopwatch mode (count up)
+    if (workoutState.workoutMode === 'stopwatch') {
+        workoutState.elapsedTime += 0.1;
+        updateDisplay();
         return;
     }
     
@@ -418,6 +472,72 @@ function resumeTimer() {
 }
 
 /**
+ * Records a lap time for stopwatch mode
+ */
+function recordLap() {
+    if (workoutState.workoutMode !== 'stopwatch' || !workoutState.isRunning) {
+        return;
+    }
+    
+    const lapNumber = workoutState.lapTimes.length + 1;
+    const lapTime = workoutState.elapsedTime;
+    
+    // Calculate lap duration (time since last lap or start)
+    const lapDuration = lapTime - workoutState.lapStartTime;
+    
+    // Store lap information
+    workoutState.lapTimes.push({
+        lapNumber: lapNumber,
+        time: lapTime,
+        lapDuration: lapDuration
+    });
+    
+    // Update lap start time for next lap
+    workoutState.lapStartTime = lapTime;
+    
+    // Update display
+    displayLapTimes();
+    
+    // Play lap sound
+    playBeep('end');
+    vibrate([50]);
+}
+
+/**
+ * Displays the list of recorded lap times
+ */
+function displayLapTimes() {
+    if (!elements.lapTimesList) {
+        return;
+    }
+    
+    if (workoutState.lapTimes.length === 0) {
+        elements.lapTimesList.innerHTML = '';
+        return;
+    }
+    
+    // Format time as MM:SS
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+    
+    // Build HTML for lap times
+    const lapItems = workoutState.lapTimes.map(lap => {
+        return `
+            <div class="lap-item">
+                <span class="lap-number">Lap ${lap.lapNumber}</span>
+                <span class="lap-time">${formatTime(lap.time)}</span>
+                <span class="lap-duration">${formatTime(lap.lapDuration)}</span>
+            </div>
+        `;
+    }).join('');
+    
+    elements.lapTimesList.innerHTML = lapItems;
+}
+
+/**
  * Resets the timer to initial state
  */
 function resetTimer() {
@@ -444,10 +564,15 @@ function resetTimer() {
     workoutState.timeRemaining = 0;
     workoutState.elapsedTime = 0;
     
+    // Reset stopwatch-specific state
+    workoutState.lapTimes = [];
+    workoutState.lapStartTime = 0;
+    
     // Update UI
     elements.startBtn.style.display = 'inline-block';
     elements.pauseBtn.style.display = 'none';
     elements.pauseBtn.textContent = 'Pause';
+    elements.lapBtn.style.display = 'none';
     elements.resetBtn.disabled = false;
     
     // Enable form inputs
@@ -455,6 +580,11 @@ function resetTimer() {
     
     // Reset display
     updateDisplay();
+    
+    // Clear lap times display
+    if (workoutState.workoutMode === 'stopwatch') {
+        displayLapTimes();
+    }
 }
 
 /**
@@ -519,6 +649,31 @@ function completeWorkout() {
  * Updates the timer display, phase indicator, and progress information
  */
 function updateDisplay() {
+    // Handle stopwatch mode display
+    if (workoutState.workoutMode === 'stopwatch') {
+        // Display elapsed time counting up
+        const elapsed = Math.max(0, workoutState.elapsedTime);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = Math.floor(elapsed % 60);
+        elements.timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        // Update phase indicator
+        elements.phaseIndicator.textContent = 'Stopwatch';
+        
+        // Update phase styling
+        elements.timerSection.className = 'timer-section phase-stopwatch';
+        
+        // Hide progress info elements for stopwatch
+        elements.roundInfo.textContent = '';
+        elements.setInfo.textContent = '';
+        elements.currentPerson.style.display = 'none';
+        
+        // Hide progress bar for stopwatch
+        elements.progressBar.style.width = '0%';
+        
+        return;
+    }
+    
     // Update timer display - clamp to 0 to prevent negative display
     const timeRemaining = Math.max(0, workoutState.timeRemaining);
     const minutes = Math.floor(timeRemaining / 60);
@@ -631,6 +786,11 @@ function updateProgressBar() {
  * Disables or enables form inputs based on current mode
  */
 function disableFormInputs(disable) {
+    // Stopwatch mode doesn't have form inputs
+    if (workoutState.workoutMode === 'stopwatch') {
+        return;
+    }
+    
     if (workoutState.workoutMode === 'headToHead') {
         const inputs = [
             elements.workoutNameHeadToHead,
@@ -1106,9 +1266,24 @@ function updateFormVisibility() {
     if (workoutState.workoutMode === 'headToHead') {
         elements.normalFormSection.style.display = 'none';
         elements.headToHeadFormSection.style.display = 'block';
+    } else if (workoutState.workoutMode === 'stopwatch') {
+        elements.normalFormSection.style.display = 'none';
+        elements.headToHeadFormSection.style.display = 'none';
     } else {
         elements.normalFormSection.style.display = 'block';
         elements.headToHeadFormSection.style.display = 'none';
+    }
+    
+    // Show/hide lap times list based on mode
+    if (workoutState.workoutMode === 'stopwatch') {
+        elements.lapTimesList.style.display = 'block';
+    } else {
+        elements.lapTimesList.style.display = 'none';
+    }
+    
+    // Hide lap button when not in stopwatch mode or not running
+    if (workoutState.workoutMode !== 'stopwatch' || !workoutState.isRunning) {
+        elements.lapBtn.style.display = 'none';
     }
 }
 
@@ -1119,15 +1294,64 @@ function initEventListeners() {
     // Mode toggle handlers
     elements.normalMode.addEventListener('change', (e) => {
         if (e.target.checked) {
+            if (workoutState.isRunning) {
+                if (!confirm('Switching modes will reset the timer. Continue?')) {
+                    e.target.checked = false;
+                    // Restore previous mode
+                    if (workoutState.workoutMode === 'headToHead') {
+                        elements.headToHeadMode.checked = true;
+                    } else if (workoutState.workoutMode === 'stopwatch') {
+                        elements.stopwatchMode.checked = true;
+                    }
+                    return;
+                }
+                resetTimer();
+            }
             workoutState.workoutMode = 'normal';
             updateFormVisibility();
+            updateDisplay();
         }
     });
     
     elements.headToHeadMode.addEventListener('change', (e) => {
         if (e.target.checked) {
+            if (workoutState.isRunning) {
+                if (!confirm('Switching modes will reset the timer. Continue?')) {
+                    e.target.checked = false;
+                    // Restore previous mode
+                    if (workoutState.workoutMode === 'normal') {
+                        elements.normalMode.checked = true;
+                    } else if (workoutState.workoutMode === 'stopwatch') {
+                        elements.stopwatchMode.checked = true;
+                    }
+                    return;
+                }
+                resetTimer();
+            }
             workoutState.workoutMode = 'headToHead';
             updateFormVisibility();
+            updateDisplay();
+        }
+    });
+    
+    elements.stopwatchMode.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            if (workoutState.isRunning) {
+                if (!confirm('Switching modes will reset the timer. Continue?')) {
+                    e.target.checked = false;
+                    // Restore previous mode
+                    if (workoutState.workoutMode === 'normal') {
+                        elements.normalMode.checked = true;
+                    } else if (workoutState.workoutMode === 'headToHead') {
+                        elements.headToHeadMode.checked = true;
+                    }
+                    return;
+                }
+                resetTimer();
+            }
+            workoutState.workoutMode = 'stopwatch';
+            updateFormVisibility();
+            updateDisplay();
         }
     });
     
@@ -1143,6 +1367,10 @@ function initEventListeners() {
         } else {
             pauseTimer();
         }
+    });
+    
+    elements.lapBtn.addEventListener('click', () => {
+        recordLap();
     });
     
     elements.resetBtn.addEventListener('click', () => {

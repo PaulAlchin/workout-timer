@@ -215,6 +215,11 @@ input:checked + .toggle-slider:before {
     background-color: var(--bg-secondary);
 }
 
+.timer-section.phase-stopwatch {
+    background-color: var(--phase-work);
+    color: white;
+}
+
 .phase-indicator {
     font-size: 1.25rem;
     font-weight: 600;
@@ -285,6 +290,56 @@ input:checked + .toggle-slider:before {
 .timer-section.phase-rest .progress-bar,
 .timer-section.phase-longrest .progress-bar {
     background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Lap Times List */
+.lap-times-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.timer-section.phase-stopwatch .lap-times-list {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.lap-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    gap: 1rem;
+}
+
+.lap-number {
+    font-weight: 600;
+    min-width: 60px;
+}
+
+.lap-time {
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+    flex: 1;
+    text-align: center;
+}
+
+.lap-duration {
+    font-weight: 500;
+    font-family: 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+    min-width: 60px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Control Buttons */
