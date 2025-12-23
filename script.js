@@ -295,7 +295,7 @@ function startTimer() {
     requestWakeLock();
     
     // Start the interval
-    workoutState.intervalId = setInterval(updateTimer, 100);
+    workoutState.intervalId = setInterval(updateTimer, 10);
     
     // Play start sound
     playBeep('start');
@@ -358,7 +358,7 @@ function startStopwatch() {
     requestWakeLock();
     
     // Start the interval
-    workoutState.intervalId = setInterval(updateTimer, 100);
+    workoutState.intervalId = setInterval(updateTimer, 10);
     
     // Play start sound
     playBeep('start');
@@ -366,7 +366,7 @@ function startStopwatch() {
 }
 
 /**
- * Main timer update function - called every 100ms
+ * Main timer update function - called every 10ms
  */
 function updateTimer() {
     if (!workoutState.isRunning || workoutState.isPaused || workoutState.isTransitioning) {
@@ -375,7 +375,7 @@ function updateTimer() {
     
     // Handle stopwatch mode (count up)
     if (workoutState.workoutMode === 'stopwatch') {
-        workoutState.elapsedTime += 0.1;
+        workoutState.elapsedTime += 0.01;
         updateDisplay();
         return;
     }
@@ -384,8 +384,8 @@ function updateTimer() {
     const wasComplete = workoutState.timeRemaining <= 0;
     
     if (!wasComplete) {
-        workoutState.timeRemaining -= 0.1;
-        workoutState.elapsedTime += 0.1;
+        workoutState.timeRemaining -= 0.01;
+        workoutState.elapsedTime += 0.01;
     }
     
     // Clamp time to 0 if negative
@@ -516,20 +516,13 @@ function displayLapTimes() {
         return;
     }
     
-    // Format time as MM:SS
-    const formatTime = (seconds) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    };
-    
-    // Build HTML for lap times
+    // Build HTML for lap times with millisecond formatting
     const lapItems = workoutState.lapTimes.map(lap => {
         return `
             <div class="lap-item">
                 <span class="lap-number">Lap ${lap.lapNumber}</span>
-                <span class="lap-time">${formatTime(lap.time)}</span>
-                <span class="lap-duration">${formatTime(lap.lapDuration)}</span>
+                <span class="lap-time">${formatTimeWithMilliseconds(lap.time)}</span>
+                <span class="lap-duration">${formatTimeWithMilliseconds(lap.lapDuration)}</span>
             </div>
         `;
     }).join('');
@@ -646,16 +639,26 @@ function completeWorkout() {
 // ============================================================================
 
 /**
+ * Formats time in seconds to MM:SS.mm format (minutes:seconds.centiseconds)
+ * @param {number} seconds - Time in seconds
+ * @returns {string} Formatted time string
+ */
+function formatTimeWithMilliseconds(seconds) {
+    const totalSeconds = Math.max(0, seconds);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    const centiseconds = Math.floor((totalSeconds % 1) * 100);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+}
+
+/**
  * Updates the timer display, phase indicator, and progress information
  */
 function updateDisplay() {
     // Handle stopwatch mode display
     if (workoutState.workoutMode === 'stopwatch') {
-        // Display elapsed time counting up
-        const elapsed = Math.max(0, workoutState.elapsedTime);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = Math.floor(elapsed % 60);
-        elements.timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        // Display elapsed time counting up with milliseconds
+        elements.timerDisplay.textContent = formatTimeWithMilliseconds(workoutState.elapsedTime);
         
         // Update phase indicator
         elements.phaseIndicator.textContent = 'Stopwatch';
@@ -675,14 +678,10 @@ function updateDisplay() {
     }
     
     // Update timer display - clamp to 0 to prevent negative display
-    const timeRemaining = Math.max(0, workoutState.timeRemaining);
-    const minutes = Math.floor(timeRemaining / 60);
-    const seconds = Math.floor(timeRemaining % 60);
-    
     if (workoutState.currentPhase === 'ready' || workoutState.currentPhase === 'complete') {
-        elements.timerDisplay.textContent = '00:00';
+        elements.timerDisplay.textContent = '00:00.00';
     } else {
-        elements.timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        elements.timerDisplay.textContent = formatTimeWithMilliseconds(workoutState.timeRemaining);
     }
     
     // Update phase indicator
