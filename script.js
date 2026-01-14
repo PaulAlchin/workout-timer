@@ -1377,9 +1377,20 @@ function initAudioContext() {
     if (!audioContext) {
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // On iOS, try to resume immediately if possible
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(err => {
+                    console.warn('Could not resume audio context:', err);
+                });
+            }
         } catch (e) {
             console.warn('Audio context not supported:', e);
         }
+    } else if (audioContext.state === 'suspended') {
+        // Resume if already created but suspended (common on iOS)
+        audioContext.resume().catch(err => {
+            console.warn('Could not resume audio context:', err);
+        });
     }
 }
 
@@ -1387,12 +1398,17 @@ function initAudioContext() {
  * Plays a beep sound using Web Audio API
  * @param {string} type - 'start', 'end', 'roundStart', 'complete'
  */
-function playBeep(type = 'end') {
+async function playBeep(type = 'end') {
     if (!workoutState.soundsEnabled || !audioContext) {
         return;
     }
     
     try {
+        // iOS Safari requires AudioContext to be resumed if suspended
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         
@@ -1418,7 +1434,11 @@ function playBeep(type = 'end') {
         
         // Double beep for round start
         if (type === 'roundStart') {
-            setTimeout(() => {
+            setTimeout(async () => {
+                // Ensure AudioContext is still running
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
                 const oscillator2 = audioContext.createOscillator();
                 const gainNode2 = audioContext.createGain();
                 oscillator2.connect(gainNode2);
@@ -2003,18 +2023,20 @@ function initEventListeners() {
         });
     });
     
-    // Initialize audio context on any user interaction
-    document.addEventListener('click', () => {
+    // Initialize audio context on any user interaction (critical for iOS)
+    const initAudioOnInteraction = () => {
         if (!audioContext) {
             initAudioContext();
+        } else if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(err => {
+                console.warn('Could not resume audio context:', err);
+            });
         }
-    }, { once: true });
+    };
     
-    document.addEventListener('touchstart', () => {
-        if (!audioContext) {
-            initAudioContext();
-        }
-    }, { once: true });
+    document.addEventListener('click', initAudioOnInteraction, { once: true });
+    document.addEventListener('touchstart', initAudioOnInteraction, { once: true });
+    document.addEventListener('touchend', initAudioOnInteraction, { once: true });
     
     // Handle page visibility changes to reacquire wake lock if needed
     document.addEventListener('visibilitychange', handleVisibilityChange);
