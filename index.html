@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#4CAF50">
     <title>Workout Timer</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
     <div class="container">
@@ -20,6 +20,22 @@
             </label>
         </header>
 
+        <!-- Tab Navigation -->
+        <section class="tab-navigation">
+            <div class="tab-toggle">
+                <label class="tab-option">
+                    <input type="radio" name="mainTab" id="workoutTab" value="workout" checked>
+                    <span>Workout Timer</span>
+                </label>
+                <label class="tab-option">
+                    <input type="radio" name="mainTab" id="breathingTab" value="breathing">
+                    <span>Breathing</span>
+                </label>
+            </div>
+        </section>
+
+        <!-- Workout Timer Content -->
+        <div id="workoutContent" class="tab-content">
         <!-- Timer Display Section -->
         <section class="timer-section" id="timerSection">
             <div class="phase-indicator" id="phaseIndicator">Ready</div>
@@ -192,9 +208,100 @@
                 <p class="no-presets">No presets saved yet. Configure a workout and click "Save Preset" to create one.</p>
             </div>
         </section>
+        </div>
+
+        <!-- Breathing Content -->
+        <div id="breathingContent" class="tab-content" style="display: none;">
+            <!-- Breathing Timer Display Section -->
+            <section class="breathing-section">
+                <div class="breathing-phase-indicator" id="breathingPhaseIndicator">Ready</div>
+                <div class="breathing-timer-display" id="breathingTimerDisplay">00:00</div>
+                
+                <!-- Breathing Visual Indicator -->
+                <div class="breathing-graphic-container">
+                    <div class="breathing-circle" id="breathingCircle">
+                        <div class="breathing-circle-inner">
+                            <div class="breathing-phase-label" id="breathingPhaseLabel">Ready</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Control Buttons -->
+                <div class="control-buttons">
+                    <button id="breathingStartBtn" class="btn btn-primary">Start</button>
+                    <button id="breathingPauseBtn" class="btn btn-secondary" style="display: none;">Pause</button>
+                    <button id="breathingResetBtn" class="btn btn-secondary">Reset</button>
+                </div>
+            </section>
+
+            <!-- Breathing Configuration Section -->
+            <section class="breathing-config-section">
+                <h2>Breathing Configuration</h2>
+                <form id="breathingForm">
+                    <div class="breathing-time-selectors">
+                        <div class="form-group">
+                            <label for="breathInTime">Breath In Time (seconds)</label>
+                            <select id="breathInTime" required>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4" selected>4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="inhaledHoldTime">Inhaled Hold Time (seconds)</label>
+                            <select id="inhaledHoldTime" required>
+                                <option value="0" selected>0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="breathOutTime">Breath Out Time (seconds)</label>
+                            <select id="breathOutTime" required>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4" selected>4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="exhaledHoldTime">Exhaled Hold Time (seconds)</label>
+                            <select id="exhaledHoldTime" required>
+                                <option value="0" selected>0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=5"></script>
     
     <script>
         // Register service worker

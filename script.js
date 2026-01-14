@@ -55,7 +55,24 @@ let workoutState = {
     
     // Settings
     soundsEnabled: true,
-    vibrationEnabled: true
+    vibrationEnabled: true,
+    
+    // Breathing mode state
+    breathingMode: false, // Track if in breathing mode
+    breathingConfig: {
+        breathIn: 4,
+        inhaledHold: 0,
+        breathOut: 4,
+        exhaledHold: 0
+    },
+    currentBreathingPhase: 'ready', // 'ready', 'breathIn', 'inhaledHold', 'breathOut', 'exhaledHold'
+    breathingTimeRemaining: 0,
+    breathingPhaseSequence: [],
+    currentBreathingPhaseIndex: 0,
+    breathingIntervalId: null,
+    breathingIsPaused: false,
+    breathingIsRunning: false,
+    breathingIsTransitioning: false
 };
 
 // ============================================================================
@@ -115,7 +132,27 @@ const elements = {
     // Presets
     savePresetBtn: document.getElementById('savePresetBtn'),
     savePresetHeadToHeadBtn: document.getElementById('savePresetHeadToHeadBtn'),
-    presetsList: document.getElementById('presetsList')
+    presetsList: document.getElementById('presetsList'),
+    
+    // Tab navigation
+    workoutTab: document.getElementById('workoutTab'),
+    breathingTab: document.getElementById('breathingTab'),
+    workoutContent: document.getElementById('workoutContent'),
+    breathingContent: document.getElementById('breathingContent'),
+    
+    // Breathing elements
+    breathingSection: document.querySelector('#breathingContent .breathing-section'),
+    breathingPhaseIndicator: document.getElementById('breathingPhaseIndicator'),
+    breathingTimerDisplay: document.getElementById('breathingTimerDisplay'),
+    breathingCircle: document.getElementById('breathingCircle'),
+    breathingPhaseLabel: document.getElementById('breathingPhaseLabel'),
+    breathingStartBtn: document.getElementById('breathingStartBtn'),
+    breathingPauseBtn: document.getElementById('breathingPauseBtn'),
+    breathingResetBtn: document.getElementById('breathingResetBtn'),
+    breathInTime: document.getElementById('breathInTime'),
+    inhaledHoldTime: document.getElementById('inhaledHoldTime'),
+    breathOutTime: document.getElementById('breathOutTime'),
+    exhaledHoldTime: document.getElementById('exhaledHoldTime')
 };
 
 // ============================================================================
@@ -688,6 +725,273 @@ function completeWorkout() {
 }
 
 // ============================================================================
+// BREATHING TIMER ENGINE
+// ============================================================================
+
+/**
+ * Builds the breathing phase sequence array
+ * Sequence: breathIn → inhaledHold → breathOut → exhaledHold (loops)
+ */
+function buildBreathingSequence() {
+    const sequence = [];
+    const config = workoutState.breathingConfig;
+    
+    // Only add phases with duration > 0
+    if (config.breathIn > 0) {
+        sequence.push({
+            type: 'breathIn',
+            duration: config.breathIn
+        });
+    }
+    
+    if (config.inhaledHold > 0) {
+        sequence.push({
+            type: 'inhaledHold',
+            duration: config.inhaledHold
+        });
+    }
+    
+    if (config.breathOut > 0) {
+        sequence.push({
+            type: 'breathOut',
+            duration: config.breathOut
+        });
+    }
+    
+    if (config.exhaledHold > 0) {
+        sequence.push({
+            type: 'exhaledHold',
+            duration: config.exhaledHold
+        });
+    }
+    
+    workoutState.breathingPhaseSequence = sequence;
+    workoutState.currentBreathingPhaseIndex = 0;
+    
+    if (sequence.length === 0) {
+        console.warn('No breathing phases configured');
+    }
+}
+
+/**
+ * Loads breathing configuration from form inputs
+ */
+function loadBreathingConfigFromForm() {
+    workoutState.breathingConfig = {
+        breathIn: parseInt(elements.breathInTime.value) || 4,
+        inhaledHold: parseInt(elements.inhaledHoldTime.value) || 0,
+        breathOut: parseInt(elements.breathOutTime.value) || 4,
+        exhaledHold: parseInt(elements.exhaledHoldTime.value) || 0
+    };
+}
+
+/**
+ * Starts the breathing timer
+ */
+function startBreathingTimer() {
+    // Check if user has interacted (required for audio)
+    if (!workoutState.hasInteracted) {
+        workoutState.hasInteracted = true;
+    }
+    
+    // Load configuration from form
+    loadBreathingConfigFromForm();
+    
+    // Validate configuration
+    if (workoutState.breathingConfig.breathIn <= 0 && workoutState.breathingConfig.breathOut <= 0) {
+        alert('Breath in or breath out time must be greater than 0');
+        return;
+    }
+    
+    // Build phase sequence
+    buildBreathingSequence();
+    
+    if (workoutState.breathingPhaseSequence.length === 0) {
+        alert('Invalid breathing configuration');
+        return;
+    }
+    
+    // Initialize breathing timer state
+    workoutState.breathingIsRunning = true;
+    workoutState.breathingIsPaused = false;
+    workoutState.currentBreathingPhaseIndex = 0;
+    workoutState.breathingIsTransitioning = false;
+    
+    // Load first phase
+    loadBreathingPhase();
+    
+    // Update UI
+    if (elements.breathingStartBtn) elements.breathingStartBtn.style.display = 'none';
+    if (elements.breathingPauseBtn) elements.breathingPauseBtn.style.display = 'inline-block';
+    if (elements.breathingResetBtn) elements.breathingResetBtn.disabled = false;
+    
+    // Disable form inputs during breathing
+    disableBreathingInputs(true);
+    
+    // Request screen wake lock
+    requestWakeLock();
+    
+    // Start the interval
+    workoutState.breathingIntervalId = setInterval(updateBreathingTimer, 10);
+    
+    // Play start sound
+    playBeep('start');
+    vibrate([100]);
+}
+
+/**
+ * Loads the current breathing phase from the phase sequence
+ */
+function loadBreathingPhase() {
+    // Validate index
+    if (workoutState.currentBreathingPhaseIndex < 0 || workoutState.currentBreathingPhaseIndex >= workoutState.breathingPhaseSequence.length) {
+        // Loop back to start for continuous breathing
+        workoutState.currentBreathingPhaseIndex = 0;
+    }
+    
+    const phase = workoutState.breathingPhaseSequence[workoutState.currentBreathingPhaseIndex];
+    
+    if (!phase) {
+        console.error('Breathing phase not found at index:', workoutState.currentBreathingPhaseIndex);
+        resetBreathingTimer();
+        return;
+    }
+    
+    workoutState.currentBreathingPhase = phase.type;
+    workoutState.breathingTimeRemaining = phase.duration;
+    
+    // Debug log
+    console.log(`Breathing Phase ${workoutState.currentBreathingPhaseIndex}: ${phase.type}, Duration: ${phase.duration}s`);
+    
+    updateBreathingDisplay();
+}
+
+/**
+ * Main breathing timer update function - called every 10ms
+ */
+function updateBreathingTimer() {
+    if (!workoutState.breathingIsRunning || workoutState.breathingIsPaused || workoutState.breathingIsTransitioning) {
+        return;
+    }
+    
+    // Check if phase is complete BEFORE updating time (to prevent multiple transitions)
+    const wasComplete = workoutState.breathingTimeRemaining <= 0;
+    
+    if (!wasComplete) {
+        workoutState.breathingTimeRemaining -= 0.01;
+    }
+    
+    // Clamp time to 0 if negative
+    if (workoutState.breathingTimeRemaining < 0) {
+        workoutState.breathingTimeRemaining = 0;
+    }
+    
+    // Update display
+    updateBreathingDisplay();
+    
+    // Check if phase is complete (only once per phase)
+    if (!wasComplete && workoutState.breathingTimeRemaining <= 0) {
+        // Prevent multiple transitions
+        workoutState.breathingIsTransitioning = true;
+        
+        // Play completion sound
+        playBeep('end');
+        vibrate([100]);
+        
+        // Move to next phase (loop continuously)
+        const nextIndex = (workoutState.currentBreathingPhaseIndex + 1) % workoutState.breathingPhaseSequence.length;
+        
+        // Small delay before next phase transition
+        setTimeout(() => {
+            // Check if still running (not paused/reset during delay)
+            if (!workoutState.breathingIsRunning) {
+                workoutState.breathingIsTransitioning = false;
+                return;
+            }
+            
+            // Update index
+            workoutState.currentBreathingPhaseIndex = nextIndex;
+            
+            // Clear the transition flag
+            workoutState.breathingIsTransitioning = false;
+            
+            loadBreathingPhase();
+        }, 500);
+    }
+}
+
+/**
+ * Pauses the breathing timer
+ */
+function pauseBreathingTimer() {
+    if (!workoutState.breathingIsRunning) return;
+    
+    workoutState.breathingIsPaused = true;
+    if (elements.breathingPauseBtn) elements.breathingPauseBtn.textContent = 'Resume';
+}
+
+/**
+ * Resumes the breathing timer
+ */
+function resumeBreathingTimer() {
+    if (!workoutState.breathingIsRunning) return;
+    
+    workoutState.breathingIsPaused = false;
+    if (elements.breathingPauseBtn) elements.breathingPauseBtn.textContent = 'Pause';
+}
+
+/**
+ * Resets the breathing timer to initial state
+ */
+function resetBreathingTimer() {
+    // Clear interval
+    if (workoutState.breathingIntervalId) {
+        clearInterval(workoutState.breathingIntervalId);
+        workoutState.breathingIntervalId = null;
+    }
+    
+    // Release screen wake lock
+    releaseWakeLock();
+    
+    // Reset state
+    workoutState.breathingIsRunning = false;
+    workoutState.breathingIsPaused = false;
+    workoutState.breathingIsTransitioning = false;
+    workoutState.currentBreathingPhase = 'ready';
+    workoutState.currentBreathingPhaseIndex = 0;
+    workoutState.breathingTimeRemaining = 0;
+    
+    // Update UI
+    if (elements.breathingStartBtn) elements.breathingStartBtn.style.display = 'inline-block';
+    if (elements.breathingPauseBtn) {
+        elements.breathingPauseBtn.style.display = 'none';
+        elements.breathingPauseBtn.textContent = 'Pause';
+    }
+    if (elements.breathingResetBtn) elements.breathingResetBtn.disabled = false;
+    
+    // Enable form inputs
+    disableBreathingInputs(false);
+    
+    // Reset display
+    updateBreathingDisplay();
+}
+
+/**
+ * Disables or enables breathing form inputs
+ */
+function disableBreathingInputs(disable) {
+    const inputs = [
+        elements.breathInTime,
+        elements.inhaledHoldTime,
+        elements.breathOutTime,
+        elements.exhaledHoldTime
+    ];
+    inputs.forEach(input => {
+        if (input) input.disabled = disable;
+    });
+}
+
+// ============================================================================
 // UI UPDATES
 // ============================================================================
 
@@ -842,6 +1146,124 @@ function updateProgressBar() {
     
     const progress = (workoutState.elapsedTime / workoutState.totalWorkoutTime) * 100;
     elements.progressBar.style.width = `${Math.min(progress, 100)}%`;
+}
+
+/**
+ * Updates the breathing timer display and graphic
+ */
+function updateBreathingDisplay() {
+    // Update timer display
+    if (workoutState.currentBreathingPhase === 'ready') {
+        if (elements.breathingTimerDisplay) {
+            elements.breathingTimerDisplay.textContent = '00:00.00';
+        }
+    } else {
+        if (elements.breathingTimerDisplay) {
+            elements.breathingTimerDisplay.textContent = formatTimeWithMilliseconds(workoutState.breathingTimeRemaining);
+        }
+    }
+    
+    // Update phase indicator
+    const phaseLabels = {
+        'ready': 'Ready',
+        'breathIn': 'Breath In',
+        'inhaledHold': 'Hold',
+        'breathOut': 'Breath Out',
+        'exhaledHold': 'Hold'
+    };
+    
+    if (elements.breathingPhaseIndicator) {
+        elements.breathingPhaseIndicator.textContent = phaseLabels[workoutState.currentBreathingPhase] || 'Ready';
+    }
+    
+    // Update phase styling
+    if (elements.breathingSection) {
+        elements.breathingSection.className = 'breathing-section';
+        if (workoutState.currentBreathingPhase !== 'ready') {
+            elements.breathingSection.classList.add(`phase-${workoutState.currentBreathingPhase}`);
+        }
+        // Ensure section has overflow hidden to prevent layout shifts
+        elements.breathingSection.style.overflow = 'hidden';
+        elements.breathingSection.style.position = 'relative';
+    }
+    
+    // Update graphic
+    updateBreathingGraphic();
+}
+
+/**
+ * Updates the breathing circle graphic based on current phase and progress
+ */
+function updateBreathingGraphic() {
+    if (!elements.breathingCircle || !elements.breathingPhaseLabel) {
+        return;
+    }
+    
+    // Ensure container is set up correctly to prevent layout shifts
+    const container = elements.breathingCircle.parentElement;
+    if (container && container.classList.contains('breathing-graphic-container')) {
+        container.style.position = 'relative';
+        container.style.flexShrink = '0';
+    }
+    
+    const phase = workoutState.currentBreathingPhase;
+    const phaseLabels = {
+        'ready': 'Ready',
+        'breathIn': 'Breathe In',
+        'inhaledHold': 'Hold',
+        'breathOut': 'Breathe Out',
+        'exhaledHold': 'Hold'
+    };
+    
+    // Update phase label
+    elements.breathingPhaseLabel.textContent = phaseLabels[phase] || 'Ready';
+    
+    // Calculate circle size based on phase and progress
+    let circleSize = 130; // Base size in pixels
+    const maxSize = 280; // Maximum size when fully expanded
+    const minSize = 130; // Minimum size when fully contracted (increased to prevent text wrapping)
+    
+    if (phase === 'breathIn') {
+        // Expand during breath in
+        const phaseDuration = workoutState.breathingPhaseSequence[workoutState.currentBreathingPhaseIndex]?.duration || 4;
+        const progress = 1 - (workoutState.breathingTimeRemaining / phaseDuration);
+        circleSize = minSize + (maxSize - minSize) * progress;
+    } else if (phase === 'inhaledHold') {
+        // Stay large during inhaled hold
+        circleSize = maxSize;
+    } else if (phase === 'breathOut') {
+        // Contract during breath out
+        const phaseDuration = workoutState.breathingPhaseSequence[workoutState.currentBreathingPhaseIndex]?.duration || 4;
+        const progress = 1 - (workoutState.breathingTimeRemaining / phaseDuration);
+        circleSize = maxSize - (maxSize - minSize) * progress;
+    } else if (phase === 'exhaledHold') {
+        // Stay small during exhaled hold
+        circleSize = minSize;
+    } else {
+        // Ready state - medium size
+        circleSize = 130;
+    }
+    
+    // Apply size to circle
+    elements.breathingCircle.style.width = `${circleSize}px`;
+    elements.breathingCircle.style.height = `${circleSize}px`;
+    
+    // Set background color based on phase (pastel purple for ready, phase colors for active phases)
+    const phaseColors = {
+        'ready': '#C8A8E9',      // Pastel purple
+        'breathIn': '#2196F3',   // Blue
+        'inhaledHold': '#4CAF50', // Green
+        'breathOut': '#FF9800',   // Orange
+        'exhaledHold': '#9C27B0'  // Purple
+    };
+    elements.breathingCircle.style.backgroundColor = phaseColors[phase] || '#C8A8E9';
+    
+    // Ensure circle is absolutely positioned to prevent layout shifts
+    elements.breathingCircle.style.position = 'absolute';
+    elements.breathingCircle.style.top = '50%';
+    elements.breathingCircle.style.left = '50%';
+    elements.breathingCircle.style.transform = 'translate(-50%, -50%)';
+    elements.breathingCircle.style.margin = '0';
 }
 
 /**
@@ -1356,6 +1778,42 @@ function updateFormVisibility() {
 }
 
 /**
+ * Switches between workout and breathing tabs
+ * @param {string} tab - 'workout' or 'breathing'
+ */
+function switchTab(tab) {
+    if (tab === 'breathing') {
+        // Check if workout timer is running
+        if (workoutState.isRunning) {
+            if (!confirm('Switching to breathing will stop the workout timer. Continue?')) {
+                // Restore workout tab
+                if (elements.workoutTab) elements.workoutTab.checked = true;
+                return;
+            }
+            resetTimer();
+        }
+        
+        workoutState.breathingMode = true;
+        if (elements.workoutContent) elements.workoutContent.style.display = 'none';
+        if (elements.breathingContent) elements.breathingContent.style.display = 'block';
+    } else {
+        // Check if breathing timer is running
+        if (workoutState.breathingIsRunning) {
+            if (!confirm('Switching to workout timer will stop the breathing timer. Continue?')) {
+                // Restore breathing tab
+                if (elements.breathingTab) elements.breathingTab.checked = true;
+                return;
+            }
+            resetBreathingTimer();
+        }
+        
+        workoutState.breathingMode = false;
+        if (elements.workoutContent) elements.workoutContent.style.display = 'block';
+        if (elements.breathingContent) elements.breathingContent.style.display = 'none';
+    }
+}
+
+/**
  * Initializes all event listeners
  */
 function initEventListeners() {
@@ -1423,6 +1881,23 @@ function initEventListeners() {
         }
     });
     
+    // Tab navigation handlers
+    if (elements.workoutTab) {
+        elements.workoutTab.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                switchTab('workout');
+            }
+        });
+    }
+    
+    if (elements.breathingTab) {
+        elements.breathingTab.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                switchTab('breathing');
+            }
+        });
+    }
+    
     // Control buttons
     elements.startBtn.addEventListener('click', () => {
         initAudioContext();
@@ -1450,6 +1925,36 @@ function initEventListeners() {
             resetTimer();
         }
     });
+    
+    // Breathing control buttons
+    if (elements.breathingStartBtn) {
+        elements.breathingStartBtn.addEventListener('click', () => {
+            initAudioContext();
+            startBreathingTimer();
+        });
+    }
+    
+    if (elements.breathingPauseBtn) {
+        elements.breathingPauseBtn.addEventListener('click', () => {
+            if (workoutState.breathingIsPaused) {
+                resumeBreathingTimer();
+            } else {
+                pauseBreathingTimer();
+            }
+        });
+    }
+    
+    if (elements.breathingResetBtn) {
+        elements.breathingResetBtn.addEventListener('click', () => {
+            if (workoutState.breathingIsRunning) {
+                if (confirm('Reset the breathing timer? Current progress will be lost.')) {
+                    resetBreathingTimer();
+                }
+            } else {
+                resetBreathingTimer();
+            }
+        });
+    }
     
     // Settings toggles
     elements.enableSounds.addEventListener('change', (e) => {
@@ -1535,6 +2040,31 @@ function init() {
     
     // Initialize display
     updateDisplay();
+    
+    // Initialize breathing display
+    updateBreathingDisplay();
+    
+    // Force initialize breathing circle positioning - CRITICAL FIX
+    setTimeout(() => {
+        const circle = document.getElementById('breathingCircle');
+        const section = document.querySelector('#breathingContent .breathing-section');
+        const container = document.querySelector('.breathing-graphic-container');
+        
+        if (circle) {
+            circle.style.cssText = 'position: absolute !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; margin: 0 !important; width: 130px !important; height: 130px !important; background-color: #C8A8E9 !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; z-index: 10 !important;';
+            console.log('Breathing circle initialized');
+        } else {
+            console.error('Breathing circle element not found!');
+        }
+        
+        if (section) {
+            section.style.cssText += 'overflow: hidden !important; position: relative !important; min-height: 500px !important; justify-content: flex-start !important;';
+        }
+        
+        if (container) {
+            container.style.cssText += 'position: relative !important; flex-shrink: 0 !important; min-height: 300px !important;';
+        }
+    }, 100);
     
     // Initialize audio context if already interacted
     initAudioContext();
