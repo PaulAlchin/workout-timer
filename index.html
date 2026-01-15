@@ -234,6 +234,45 @@
                 </div>
             </section>
 
+            <!-- Breathing Presets Section -->
+            <section class="breathing-presets-section">
+                <h2>Breathing Presets</h2>
+                <div class="preset-selector">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="breathingCategory">Category</label>
+                            <select id="breathingCategory">
+                                <option value="">All Categories</option>
+                                <option value="Calming">Calming</option>
+                                <option value="Focus">Focus</option>
+                                <option value="Energizing">Energizing</option>
+                                <option value="Sleep">Sleep</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="breathingPreset">Select Preset</label>
+                            <select id="breathingPreset">
+                                <option value="">Choose a preset...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="preset-info" id="breathingPresetInfo" style="display: none;">
+                        <div class="preset-description" id="breathingPresetDescription"></div>
+                        <div class="preset-use-case" id="breathingPresetUseCase"></div>
+                    </div>
+                </div>
+                
+                <div class="save-preset-controls">
+                    <div class="form-group">
+                        <label for="breathingPresetName">Save Current as Preset</label>
+                        <div class="save-preset-input-group">
+                            <input type="text" id="breathingPresetName" placeholder="Enter preset name..." maxlength="50">
+                            <button type="button" id="saveBreathingPresetBtn" class="btn btn-secondary">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Breathing Configuration Section -->
             <section class="breathing-config-section">
                 <h2>Breathing Configuration</h2>
@@ -297,6 +336,14 @@
                         </div>
                     </div>
                 </form>
+            </section>
+
+            <!-- Saved Breathing Presets Section -->
+            <section class="breathing-saved-presets-section">
+                <h2>Saved Presets</h2>
+                <div id="breathingPresetsList" class="presets-list">
+                    <p class="no-presets">No custom presets saved yet. Configure a breathing pattern and click "Save" to create one.</p>
+                </div>
             </section>
         </div>
     </div>

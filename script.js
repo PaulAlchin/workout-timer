@@ -152,7 +152,17 @@ const elements = {
     breathInTime: document.getElementById('breathInTime'),
     inhaledHoldTime: document.getElementById('inhaledHoldTime'),
     breathOutTime: document.getElementById('breathOutTime'),
-    exhaledHoldTime: document.getElementById('exhaledHoldTime')
+    exhaledHoldTime: document.getElementById('exhaledHoldTime'),
+    
+    // Breathing preset elements
+    breathingCategory: document.getElementById('breathingCategory'),
+    breathingPreset: document.getElementById('breathingPreset'),
+    breathingPresetInfo: document.getElementById('breathingPresetInfo'),
+    breathingPresetDescription: document.getElementById('breathingPresetDescription'),
+    breathingPresetUseCase: document.getElementById('breathingPresetUseCase'),
+    breathingPresetName: document.getElementById('breathingPresetName'),
+    saveBreathingPresetBtn: document.getElementById('saveBreathingPresetBtn'),
+    breathingPresetsList: document.getElementById('breathingPresetsList')
 };
 
 // ============================================================================
@@ -1573,6 +1583,151 @@ async function handleVisibilityChange() {
 
 const PRESETS_STORAGE_KEY = 'workoutTimer_presets';
 const SETTINGS_STORAGE_KEY = 'workoutTimer_settings';
+const BREATHING_PRESETS_STORAGE_KEY = 'workoutTimer_breathingPresets';
+
+/**
+ * Built-in breathing presets organized by category
+ */
+const BUILT_IN_BREATHING_PRESETS = {
+    'Calming': [
+        {
+            category: 'Calming',
+            name: 'Box Breathing',
+            breathIn: 4,
+            inhaledHold: 4,
+            breathOut: 4,
+            exhaledHold: 4,
+            description: 'Stress reduction, emotional control',
+            useCase: 'Anxiety, grounding'
+        },
+        {
+            category: 'Calming',
+            name: 'Relaxed Box',
+            breathIn: 5,
+            inhaledHold: 5,
+            breathOut: 5,
+            exhaledHold: 5,
+            description: 'Deep calming',
+            useCase: 'Meditation, nervous system reset'
+        },
+        {
+            category: 'Calming',
+            name: '4-6 Breathing',
+            breathIn: 4,
+            inhaledHold: 0,
+            breathOut: 6,
+            exhaledHold: 0,
+            description: 'Relaxation',
+            useCase: 'Mild stress, beginners'
+        },
+        {
+            category: 'Calming',
+            name: 'Extended Exhale',
+            breathIn: 4,
+            inhaledHold: 0,
+            breathOut: 8,
+            exhaledHold: 0,
+            description: 'Strong calming',
+            useCase: 'Panic, acute stress'
+        }
+    ],
+    'Focus': [
+        {
+            category: 'Focus',
+            name: 'Focus Box',
+            breathIn: 5,
+            inhaledHold: 5,
+            breathOut: 5,
+            exhaledHold: 5,
+            description: 'Concentration',
+            useCase: 'Work, studying'
+        },
+        {
+            category: 'Focus',
+            name: 'Tactical Focus',
+            breathIn: 4,
+            inhaledHold: 4,
+            breathOut: 6,
+            exhaledHold: 2,
+            description: 'Calm alertness',
+            useCase: 'Performance, decision-making'
+        },
+        {
+            category: 'Focus',
+            name: 'Equal Breathing',
+            breathIn: 6,
+            inhaledHold: 0,
+            breathOut: 6,
+            exhaledHold: 0,
+            description: 'Mental balance',
+            useCase: 'Sustained focus'
+        }
+    ],
+    'Energizing': [
+        {
+            category: 'Energizing',
+            name: 'Stimulating Breath',
+            breathIn: 6,
+            inhaledHold: 0,
+            breathOut: 4,
+            exhaledHold: 0,
+            description: 'Increased energy',
+            useCase: 'Fatigue, low motivation'
+        },
+        {
+            category: 'Energizing',
+            name: 'Wake-Up Rhythm',
+            breathIn: 4,
+            inhaledHold: 2,
+            breathOut: 4,
+            exhaledHold: 0,
+            description: 'Gentle activation',
+            useCase: 'Morning use'
+        },
+        {
+            category: 'Energizing',
+            name: 'Power Breathing',
+            breathIn: 5,
+            inhaledHold: 5,
+            breathOut: 3,
+            exhaledHold: 2,
+            description: 'Readiness, alertness',
+            useCase: 'Pre-task activation'
+        }
+    ],
+    'Sleep': [
+        {
+            category: 'Sleep',
+            name: '4-7-8 Breathing',
+            breathIn: 4,
+            inhaledHold: 7,
+            breathOut: 8,
+            exhaledHold: 0,
+            description: 'Sleep induction',
+            useCase: 'Falling asleep'
+        },
+        {
+            category: 'Sleep',
+            name: 'Slow Drift',
+            breathIn: 6,
+            inhaledHold: 2,
+            breathOut: 8,
+            exhaledHold: 2,
+            description: 'Deep relaxation',
+            useCase: 'Wind-down, meditation'
+        },
+        {
+            category: 'Sleep',
+            name: 'Long Exhale Sleep',
+            breathIn: 4,
+            inhaledHold: 0,
+            breathOut: 10,
+            exhaledHold: 0,
+            description: 'Nervous system downshift',
+            useCase: 'Insomnia, racing mind'
+        }
+    ]
+};
 
 /**
  * Saves a workout preset to localStorage
@@ -1717,6 +1872,228 @@ function escapeHtml(text) {
 // Make functions available globally for onclick handlers
 window.loadPreset = loadPreset;
 window.deletePreset = deletePreset;
+
+// ============================================================================
+// BREATHING PRESETS SYSTEM
+// ============================================================================
+
+/**
+ * Gets all built-in breathing presets, optionally filtered by category
+ * @param {string} category - Optional category filter
+ * @returns {Array} Array of preset objects
+ */
+function getBuiltInBreathingPresets(category = '') {
+    if (!category) {
+        // Return all presets from all categories
+        return Object.values(BUILT_IN_BREATHING_PRESETS).flat();
+    }
+    return BUILT_IN_BREATHING_PRESETS[category] || [];
+}
+
+/**
+ * Loads user's custom breathing presets from localStorage
+ * @returns {Object} Object with preset names as keys and configs as values
+ */
+function loadBreathingPresetsFromStorage() {
+    try {
+        const stored = localStorage.getItem(BREATHING_PRESETS_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+        console.error('Error loading breathing presets:', e);
+        return {};
+    }
+}
+
+/**
+ * Saves a breathing preset to localStorage
+ */
+function saveBreathingPreset() {
+    loadBreathingConfigFromForm();
+    
+    const presetName = elements.breathingPresetName.value.trim();
+    if (!presetName) {
+        alert('Please enter a preset name to save');
+        if (elements.breathingPresetName) elements.breathingPresetName.focus();
+        return;
+    }
+    
+    // Check if it's a built-in preset name
+    const allBuiltIn = getBuiltInBreathingPresets();
+    if (allBuiltIn.some(p => p.name === presetName)) {
+        alert('This name is reserved for a built-in preset. Please choose a different name.');
+        if (elements.breathingPresetName) elements.breathingPresetName.focus();
+        return;
+    }
+    
+    try {
+        const presets = loadBreathingPresetsFromStorage();
+        presets[presetName] = {
+            ...workoutState.breathingConfig,
+            name: presetName,
+            isCustom: true
+        };
+        localStorage.setItem(BREATHING_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+        
+        loadBreathingPresets();
+        elements.breathingPresetName.value = '';
+        alert(`Preset "${presetName}" saved!`);
+    } catch (e) {
+        console.error('Error saving breathing preset:', e);
+        alert('Error saving preset. localStorage may not be available.');
+    }
+}
+
+/**
+ * Loads and displays all saved breathing presets in the UI
+ */
+function loadBreathingPresets() {
+    const presets = loadBreathingPresetsFromStorage();
+    const presetNames = Object.keys(presets);
+    
+    if (presetNames.length === 0) {
+        elements.breathingPresetsList.innerHTML = '<p class="no-presets">No custom presets saved yet. Configure a breathing pattern and click "Save" to create one.</p>';
+        return;
+    }
+    
+    elements.breathingPresetsList.innerHTML = presetNames.map(name => {
+        const preset = presets[name];
+        return `
+            <div class="preset-item">
+                <span class="preset-name" onclick="loadBreathingPreset('${name.replace(/'/g, "\\'")}')">${escapeHtml(name)}</span>
+                <div class="preset-actions">
+                    <button class="btn btn-secondary btn-small" onclick="loadBreathingPreset('${name.replace(/'/g, "\\'")}')">Load</button>
+                    <button class="btn btn-danger btn-small" onclick="deleteBreathingPreset('${name.replace(/'/g, "\\'")}')">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Loads a breathing preset into the form
+ * @param {string} name - Preset name (for custom presets) or preset object (for built-in)
+ */
+function loadBreathingPreset(name) {
+    let preset;
+    
+    // Check if it's a built-in preset (passed as object) or custom preset (passed as string)
+    if (typeof name === 'object') {
+        preset = name;
+    } else {
+        // Custom preset
+        const presets = loadBreathingPresetsFromStorage();
+        if (!presets[name]) {
+            alert('Preset not found');
+            return;
+        }
+        preset = presets[name];
+    }
+    
+    if (workoutState.breathingIsRunning) {
+        if (!confirm('A breathing session is in progress. Loading a preset will reset the timer. Continue?')) {
+            return;
+        }
+        resetBreathingTimer();
+    }
+    
+    // Populate form with preset data
+    populateBreathingFormFromPreset(preset);
+    loadBreathingConfigFromForm();
+    
+    // Clear preset selection dropdowns
+    if (elements.breathingCategory) elements.breathingCategory.value = '';
+    if (elements.breathingPreset) elements.breathingPreset.value = '';
+    if (elements.breathingPresetInfo) elements.breathingPresetInfo.style.display = 'none';
+}
+
+/**
+ * Populates breathing form fields from preset data
+ * @param {Object} preset - Preset object with breathIn, inhaledHold, breathOut, exhaledHold
+ */
+function populateBreathingFormFromPreset(preset) {
+    if (elements.breathInTime) elements.breathInTime.value = preset.breathIn || 4;
+    if (elements.inhaledHoldTime) elements.inhaledHoldTime.value = preset.inhaledHold || 0;
+    if (elements.breathOutTime) elements.breathOutTime.value = preset.breathOut || 4;
+    if (elements.exhaledHoldTime) elements.exhaledHoldTime.value = preset.exhaledHold || 0;
+}
+
+/**
+ * Deletes a breathing preset from localStorage
+ * @param {string} name - Preset name
+ */
+function deleteBreathingPreset(name) {
+    if (!confirm(`Delete preset "${name}"?`)) {
+        return;
+    }
+    
+    try {
+        const presets = loadBreathingPresetsFromStorage();
+        delete presets[name];
+        localStorage.setItem(BREATHING_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+        loadBreathingPresets();
+    } catch (e) {
+        console.error('Error deleting breathing preset:', e);
+        alert('Error deleting preset.');
+    }
+}
+
+/**
+ * Populates the preset dropdown based on selected category
+ */
+function updateBreathingPresetDropdown() {
+    const category = elements.breathingCategory.value;
+    const presetSelect = elements.breathingPreset;
+    
+    if (!presetSelect) return;
+    
+    // Clear existing options except the first one
+    presetSelect.innerHTML = '<option value="">Choose a preset...</option>';
+    
+    // Get presets for selected category
+    const presets = getBuiltInBreathingPresets(category);
+    
+    // Add built-in presets
+    presets.forEach(preset => {
+        const option = document.createElement('option');
+        option.value = JSON.stringify(preset); // Store preset as JSON string
+        option.textContent = preset.name;
+        presetSelect.appendChild(option);
+    });
+    
+    // Add custom presets if no category filter or category matches
+    if (!category) {
+        const customPresets = loadBreathingPresetsFromStorage();
+        Object.keys(customPresets).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name; // Custom presets use name as value
+            option.textContent = `${name} (Custom)`;
+            presetSelect.appendChild(option);
+        });
+    }
+}
+
+/**
+ * Displays preset information when a preset is selected
+ */
+function displayBreathingPresetInfo(preset) {
+    if (!preset || !elements.breathingPresetInfo) return;
+    
+    if (preset.description || preset.useCase) {
+        if (elements.breathingPresetDescription) {
+            elements.breathingPresetDescription.textContent = preset.description || '';
+        }
+        if (elements.breathingPresetUseCase) {
+            elements.breathingPresetUseCase.textContent = preset.useCase ? `Use: ${preset.useCase}` : '';
+        }
+        elements.breathingPresetInfo.style.display = 'block';
+    } else {
+        elements.breathingPresetInfo.style.display = 'none';
+    }
+}
+
+// Make functions available globally for onclick handlers
+window.loadBreathingPreset = loadBreathingPreset;
+window.deleteBreathingPreset = deleteBreathingPreset;
 
 // ============================================================================
 // PERSISTENCE
@@ -1990,6 +2367,57 @@ function initEventListeners() {
         });
     }
     
+    // Breathing preset handlers
+    if (elements.breathingCategory) {
+        elements.breathingCategory.addEventListener('change', () => {
+            updateBreathingPresetDropdown();
+            // Clear preset selection when category changes
+            if (elements.breathingPreset) elements.breathingPreset.value = '';
+            if (elements.breathingPresetInfo) elements.breathingPresetInfo.style.display = 'none';
+        });
+    }
+    
+    if (elements.breathingPreset) {
+        elements.breathingPreset.addEventListener('change', (e) => {
+            const value = e.target.value;
+            if (!value) {
+                if (elements.breathingPresetInfo) elements.breathingPresetInfo.style.display = 'none';
+                return;
+            }
+            
+            // Try to parse as JSON (built-in preset) or use as string (custom preset)
+            let preset;
+            try {
+                preset = JSON.parse(value);
+                // Built-in preset
+                displayBreathingPresetInfo(preset);
+                loadBreathingPreset(preset);
+            } catch (e) {
+                // Custom preset - value is the name
+                const customPresets = loadBreathingPresetsFromStorage();
+                preset = customPresets[value];
+                if (preset) {
+                    displayBreathingPresetInfo(preset);
+                    loadBreathingPreset(value);
+                }
+            }
+        });
+    }
+    
+    if (elements.saveBreathingPresetBtn) {
+        elements.saveBreathingPresetBtn.addEventListener('click', saveBreathingPreset);
+    }
+    
+    // Allow Enter key to save preset
+    if (elements.breathingPresetName) {
+        elements.breathingPresetName.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveBreathingPreset();
+            }
+        });
+    }
+    
     // Settings toggles
     elements.enableSounds.addEventListener('change', async (e) => {
         workoutState.soundsEnabled = e.target.checked;
@@ -2061,12 +2489,16 @@ function init() {
     // Load settings and presets
     loadSettings();
     loadPresets();
+    loadBreathingPresets();
     
     // Initialize form visibility based on current mode
     updateFormVisibility();
     
     // Initialize event listeners
     initEventListeners();
+    
+    // Initialize breathing preset dropdown
+    updateBreathingPresetDropdown();
     
     // Initialize display
     updateDisplay();
