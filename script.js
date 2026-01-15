@@ -1373,24 +1373,32 @@ let audioContext = null;
 /**
  * Initializes the audio context (must be called after user interaction)
  */
-function initAudioContext() {
+async function initAudioContext() {
     if (!audioContext) {
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            // On iOS, try to resume immediately if possible
-            if (audioContext.state === 'suspended') {
-                audioContext.resume().catch(err => {
-                    console.warn('Could not resume audio context:', err);
-                });
-            }
         } catch (e) {
             console.warn('Audio context not supported:', e);
+            return;
         }
-    } else if (audioContext.state === 'suspended') {
-        // Resume if already created but suspended (common on iOS)
-        audioContext.resume().catch(err => {
-            console.warn('Could not resume audio context:', err);
-        });
+    }
+    
+    // iOS Safari requires audio to be "unlocked" by playing a sound in the user interaction
+    if (audioContext.state === 'suspended') {
+        try {
+            await audioContext.resume();
+            // Unlock audio by playing a silent sound immediately (must be in user interaction)
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = 1; // Very low frequency
+            gainNode.gain.setValueAtTime(0.001, audioContext.currentTime); // Very quiet
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.01); // Very short
+        } catch (e) {
+            console.warn('Could not unlock audio:', e);
+        }
     }
 }
 
@@ -1919,9 +1927,12 @@ function initEventListeners() {
     }
     
     // Control buttons
-    elements.startBtn.addEventListener('click', () => {
-        initAudioContext();
-        startTimer();
+    elements.startBtn.addEventListener('click', async () => {
+        await initAudioContext();
+        // Small delay to ensure audio is unlocked before starting timer (iOS requirement)
+        setTimeout(() => {
+            startTimer();
+        }, 50);
     });
     
     elements.pauseBtn.addEventListener('click', () => {
@@ -1948,9 +1959,12 @@ function initEventListeners() {
     
     // Breathing control buttons
     if (elements.breathingStartBtn) {
-        elements.breathingStartBtn.addEventListener('click', () => {
-            initAudioContext();
-            startBreathingTimer();
+        elements.breathingStartBtn.addEventListener('click', async () => {
+            await initAudioContext();
+            // Small delay to ensure audio is unlocked before starting timer (iOS requirement)
+            setTimeout(() => {
+                startBreathingTimer();
+            }, 50);
         });
     }
     
@@ -1977,10 +1991,10 @@ function initEventListeners() {
     }
     
     // Settings toggles
-    elements.enableSounds.addEventListener('change', (e) => {
+    elements.enableSounds.addEventListener('change', async (e) => {
         workoutState.soundsEnabled = e.target.checked;
         if (e.target.checked) {
-            initAudioContext();
+            await initAudioContext();
         }
         saveSettings();
     });
@@ -2024,14 +2038,8 @@ function initEventListeners() {
     });
     
     // Initialize audio context on any user interaction (critical for iOS)
-    const initAudioOnInteraction = () => {
-        if (!audioContext) {
-            initAudioContext();
-        } else if (audioContext.state === 'suspended') {
-            audioContext.resume().catch(err => {
-                console.warn('Could not resume audio context:', err);
-            });
-        }
+    const initAudioOnInteraction = async () => {
+        await initAudioContext();
     };
     
     document.addEventListener('click', initAudioOnInteraction, { once: true });
@@ -2089,7 +2097,9 @@ function init() {
     }, 100);
     
     // Initialize audio context if already interacted
-    initAudioContext();
+    initAudioContext().catch(err => {
+        console.warn('Could not initialize audio context:', err);
+    });
 }
 
 // Initialize when DOM is ready
